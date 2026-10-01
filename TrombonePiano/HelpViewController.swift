@@ -83,6 +83,10 @@ final class HelpViewController: UIViewController, UIPopoverPresentationControlle
         text.isEditable = false
         text.backgroundColor = .clear
         text.indicatorStyle = .white
+        text.linkTextAttributes = [
+            .foregroundColor: UIColor(hex: 0x9ECBFF),
+            .underlineStyle: NSUnderlineStyle.single.rawValue,
+        ]
         text.textContainerInset = UIEdgeInsets(top: 18, left: 16, bottom: 18, right: 16)
         text.attributedText = helpText()
         text.translatesAutoresizingMaskIntoConstraints = false
@@ -173,6 +177,39 @@ final class HelpViewController: UIViewController, UIPopoverPresentationControlle
                 .paragraphStyle: body,
             ]))
         }
+        appendHeading("PRIVACY", to: text, heading: heading)
+        let policyURL = "https://extentdevices.com/privacy-policy.html"
+        let privacy = "Notes and settings stay on the device. Nothing is sent to the developer. While MIDI is on, any computer on the local network can connect and receive the notes, and a cable-connected computer or another app on this device can receive them too. Bluetooth sends notes only after advertising is turned on. Privacy policy: \(policyURL)"
+        let privacyText = NSMutableAttributedString(string: privacy, attributes: [
+            .font: moogFont(size: 15, weight: .medium),
+            .foregroundColor: UIColor.white.withAlphaComponent(0.88),
+            .paragraphStyle: body,
+        ])
+        if let range = privacy.range(of: policyURL) {
+            privacyText.addAttribute(.link, value: policyURL, range: NSRange(range, in: privacy))
+        }
+        text.append(privacyText)
+        appendHeading("CREDITS", to: text, heading: heading)
+        text.append(NSAttributedString(
+            string: "Piano and trombone samples are Fluid (R3), copyright Frank Wen. The license notice is included in the app.",
+            attributes: [
+                .font: moogFont(size: 15, weight: .medium),
+                .foregroundColor: UIColor.white.withAlphaComponent(0.88),
+                .paragraphStyle: body,
+            ]
+        ))
         return text
+    }
+
+    private func appendHeading(_ title: String, to text: NSMutableAttributedString, heading: NSParagraphStyle) {
+        text.append(NSAttributedString(string: "\n", attributes: [
+            .font: moogFont(size: 6, weight: .medium),
+        ]))
+        text.append(NSAttributedString(string: title + "\n", attributes: [
+            .font: moogFont(size: 14, weight: .medium),
+            .foregroundColor: UIColor.white,
+            .paragraphStyle: heading,
+            .kern: 1.2,
+        ]))
     }
 }

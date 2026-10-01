@@ -163,6 +163,7 @@ final class PianoViewController: UIViewController {
                 }
             } else {
                 self.midi.setEnabled(false)
+                self.audio.resumeIfNeeded()
                 self.audio.setSounding(self.sounding)
             }
         }
@@ -336,6 +337,8 @@ final class PianoViewController: UIViewController {
         audio.resumeIfNeeded()
         if midiEnabled {
             midi.play(started: sounding.sorted(), stopped: [])
+        } else {
+            audio.setSounding(sounding)
         }
     }
 

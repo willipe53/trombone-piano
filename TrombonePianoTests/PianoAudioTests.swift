@@ -50,4 +50,12 @@ final class PianoAudioTests: XCTestCase {
         XCTAssertEqual(changes.started, [72])
         XCTAssertEqual(changes.stopped, [60])
     }
+
+    func testSpeakerOverrideLeavesHeadphonesAndTakesUsb() {
+        XCTAssertFalse(shouldPlayThroughBuiltInSpeaker(ports: [.builtInSpeaker]))
+        XCTAssertFalse(shouldPlayThroughBuiltInSpeaker(ports: [.headphones]))
+        XCTAssertFalse(shouldPlayThroughBuiltInSpeaker(ports: [.bluetoothA2DP]))
+        XCTAssertTrue(shouldPlayThroughBuiltInSpeaker(ports: [.usbAudio]))
+        XCTAssertTrue(shouldPlayThroughBuiltInSpeaker(ports: []))
+    }
 }

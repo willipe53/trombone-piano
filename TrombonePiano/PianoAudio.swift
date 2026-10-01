@@ -16,6 +16,23 @@ func noteChanges(from old: Set<Int>, to new: Set<Int>) -> (started: [Int], stopp
     (started: new.subtracting(old).sorted(), stopped: old.subtracting(new).sorted())
 }
 
+/// Headphones and similar stay put. A USB or dock route with no speaker is sent back to the built-in speaker.
+func shouldPlayThroughBuiltInSpeaker(ports: [AVAudioSession.Port]) -> Bool {
+    let keep: Set<AVAudioSession.Port> = [
+        .headphones,
+        .bluetoothA2DP,
+        .bluetoothLE,
+        .bluetoothHFP,
+        .airPlay,
+        .carAudio,
+        .HDMI,
+    ]
+    if ports.contains(where: { keep.contains($0) }) {
+        return false
+    }
+    return !ports.contains(.builtInSpeaker)
+}
+
 struct TromboneSustain {
     var intro: [Float]
     var loop: [Float]
@@ -107,7 +124,8 @@ final class PianoAudio {
     private var buffers: [KeyboardInstrument: [Int: SampleVoice]] = [:]
     private let bufferLock = NSLock()
     private let loadQueue = DispatchQueue(label: "trombone-piano.samples", qos: .userInitiated)
-    private var interruptionObserver: NSObjectProtocol?
+    private var sessionObservers: [NSObjectProtocol] = []
+    private var applyingRoute = false
     private var started = false
 
     private(set) var instrument: KeyboardInstrument = .trombone
@@ -123,21 +141,8 @@ final class PianoAudio {
         configureSession()
         installVoices()
         engine.prepare()
-        do {
-            try engine.start()
-        } catch {
-            return
-        }
-        for player in players {
-            player.play()
-        }
-        interruptionObserver = NotificationCenter.default.addObserver(
-            forName: AVAudioSession.interruptionNotification,
-            object: AVAudioSession.sharedInstance(),
-            queue: .main
-        ) { [weak self] notification in
-            self?.handleInterruption(notification)
-        }
+        startEngine()
+        observeSession()
         preload(instrument)
         preload(instrument == .piano ? .trombone : .piano)
     }
@@ -164,17 +169,14 @@ final class PianoAudio {
     }
 
     func resumeIfNeeded() {
-        guard started, !engine.isRunning else { return }
-        try? AVAudioSession.sharedInstance().setActive(true)
-        try? engine.start()
-        for player in players where !player.isPlaying {
-            player.play()
-        }
+        guard started else { return }
+        startEngine()
+        replayHeldNotes()
     }
 
     deinit {
-        if let interruptionObserver {
-            NotificationCenter.default.removeObserver(interruptionObserver)
+        for observer in sessionObservers {
+            NotificationCenter.default.removeObserver(observer)
         }
         engine.stop()
     }
@@ -183,14 +185,65 @@ final class PianoAudio {
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playback, mode: .default)
         try? session.setActive(true)
+        let ports = session.currentRoute.outputs.map(\.portType)
+        guard shouldPlayThroughBuiltInSpeaker(ports: ports) else { return }
+        try? session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
+        try? session.overrideOutputAudioPort(.speaker)
+        try? session.setActive(true)
+    }
+
+    private func startEngine() {
+        configureSession()
+        if !engine.isRunning {
+            do {
+                try engine.start()
+            } catch {
+                configureSession()
+                try? engine.start()
+            }
+        }
+        for player in players where !player.isPlaying {
+            player.play()
+        }
+    }
+
+    private func replayHeldNotes() {
+        let held = sounding
+        guard !held.isEmpty else { return }
+        silenceVoices()
+        for note in held.sorted() {
+            play(note)
+        }
+    }
+
+    private func observeSession() {
+        guard sessionObservers.isEmpty else { return }
+        let session = AVAudioSession.sharedInstance()
+        let center = NotificationCenter.default
+        sessionObservers.append(center.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: session,
+            queue: .main
+        ) { [weak self] notification in
+            self?.handleInterruption(notification)
+        })
+        sessionObservers.append(center.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: session,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleRouteChange()
+        })
     }
 
     private func installVoices() {
+        let mixer = engine.mainMixerNode
+        _ = engine.outputNode
         for _ in 0..<voiceCount {
             let player = AVAudioPlayerNode()
             player.volume = 0.7
             engine.attach(player)
-            engine.connect(player, to: engine.mainMixerNode, format: format)
+            engine.connect(player, to: mixer, format: format)
             players.append(player)
             voiceNote.append(nil)
             voiceGeneration.append(0)
@@ -208,6 +261,9 @@ final class PianoAudio {
     }
 
     private func play(_ note: Int) {
+        if !engine.isRunning {
+            startEngine()
+        }
         guard engine.isRunning else { return }
         let index = voiceIndex(for: note)
         generation += 1
@@ -371,9 +427,18 @@ final class PianoAudio {
               let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
         if type == .began {
             silenceVoices()
-            sounding = []
         } else if type == .ended {
             resumeIfNeeded()
+        }
+    }
+
+    private func handleRouteChange() {
+        guard started, !applyingRoute else { return }
+        applyingRoute = true
+        startEngine()
+        replayHeldNotes()
+        DispatchQueue.main.async { [weak self] in
+            self?.applyingRoute = false
         }
     }
 }
