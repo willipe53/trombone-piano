@@ -200,6 +200,52 @@ final class ScoreNotationTests: XCTestCase {
         XCTAssertEqual(tromboneHornMessage(midi: 107), "Play it anywhere you like!")
     }
 
+    func testTriggerHornUsesFAttachmentPositionsWithinTheSlide() {
+        let travel = [0.0, 105.0, 216.0, 287.0, 400.0, 520.0, 650.0]
+        for (index, expected) in travel.enumerated() {
+            XCTAssertEqual(TromboneHorn.trigger.slideTravel[index], expected)
+            XCTAssertEqual(
+                tromboneOuterShift(travel: expected, displayedWidth: 1389, horn: .trigger),
+                expected
+            )
+        }
+        XCTAssertEqual(tromboneOuterDrop(horizontal: 709, horn: .trigger), 8, accuracy: 0.001)
+        XCTAssertEqual(
+            tromboneSlide(midi: 39, horn: .trigger),
+            SlideSetting(travel: 288, trigger: true, label: "T3")
+        )
+        XCTAssertEqual(
+            tromboneSlide(midi: 38, horn: .trigger),
+            SlideSetting(travel: 383, trigger: true, label: "T4")
+        )
+        XCTAssertEqual(
+            tromboneSlide(midi: 37, horn: .trigger),
+            SlideSetting(travel: 534, trigger: true, label: "T5")
+        )
+        XCTAssertEqual(
+            tromboneSlide(midi: 36, horn: .trigger),
+            SlideSetting(travel: 694, trigger: true, label: "T6")
+        )
+        XCTAssertEqual(
+            tromboneSlide(midi: 35, horn: .trigger),
+            SlideSetting(travel: 710, trigger: true, label: "T7")
+        )
+        for midi in 28...107 {
+            if let slide = tromboneSlide(midi: midi, horn: .trigger) {
+                XCTAssertLessThanOrEqual(slide.travel, 710)
+            }
+        }
+        let open = tromboneSlide(midi: 46, horn: .trigger)
+        XCTAssertEqual(open?.trigger, false)
+        XCTAssertEqual(open?.label, "1")
+        XCTAssertEqual(open?.travel, 0)
+        for midi in 35...39 {
+            XCTAssertNil(tromboneHornMessage(midi: midi, horn: .trigger))
+            XCTAssertEqual(trombonePositionLabel(midi: midi, horn: .trigger), tromboneSlide(midi: midi, horn: .trigger)?.label)
+        }
+        XCTAssertEqual(tromboneHornMessage(midi: 36), "requires F attachment")
+    }
+
     func testClearErasesTheStaffHistory() {
         var history = ScoreHistory()
         history.apply(started: [60, 64], stopped: [])

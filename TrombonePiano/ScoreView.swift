@@ -25,6 +25,14 @@ final class ScoreView: UIView {
         }
     }
 
+    var horn: TromboneHorn = .straight {
+        didSet {
+            if horn != oldValue {
+                setNeedsDisplay()
+            }
+        }
+    }
+
     private var history = ScoreHistory()
     private var shiftColumns: CGFloat = 0
     private var shiftToken = 0
@@ -288,16 +296,16 @@ final class ScoreView: UIView {
                     )
                 }
                 drawNoteHead(at: center, metrics: metrics, color: color, in: context)
-                if showPositions, let position = trombonePosition(midi: item.event.midi) {
-                    drawPosition(position, above: center, metrics: metrics, color: color)
+                if showPositions, let label = trombonePositionLabel(midi: item.event.midi, horn: horn) {
+                    drawPosition(label, above: center, metrics: metrics, color: color)
                 }
             }
         }
     }
 
-    private func drawPosition(_ position: Int, above center: CGPoint, metrics: Metrics, color: UIColor) {
+    private func drawPosition(_ label: String, above center: CGPoint, metrics: Metrics, color: UIColor) {
         let font = moogFont(size: metrics.headHeight, weight: .medium)
-        let text = "\(position)" as NSString
+        let text = label as NSString
         let textSize = text.size(withAttributes: [.font: font])
         let gap = metrics.spacing * 0.12
         text.draw(
@@ -368,21 +376,7 @@ final class ScoreView: UIView {
     }
 
     private func drawAccidental(_ accidental: ScoreAccidental, at center: CGPoint, size: CGFloat, color: UIColor) {
-        let glyph: String
-        switch accidental {
-        case .sharp: glyph = "♯"
-        case .flat: glyph = "♭"
-        case .natural: glyph = "♮"
-        }
-        let font = UIFont.systemFont(ofSize: size, weight: .medium)
-        let textSize = (glyph as NSString).size(withAttributes: [.font: font])
-        (glyph as NSString).draw(
-            at: CGPoint(x: center.x - textSize.width / 2, y: center.y - textSize.height / 2),
-            withAttributes: [
-                .font: font,
-                .foregroundColor: color,
-            ]
-        )
+        drawScoreAccidental(accidental, at: center, size: size, color: color)
     }
 
     /// Returns true when the system font can draw the clef. The anchor is the G line or the F line.

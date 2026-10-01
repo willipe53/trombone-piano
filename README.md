@@ -18,11 +18,11 @@ It's just a simple touch keyboard. Touch the keys to play, scroll to see the who
 
 **KEEP ALIVE.** Leaves the screen on while the app is open.
 
-**TROMBONE.** On plays the trombone and shows the horn. Off plays the piano.
+**TROMBONE.** On plays the trombone and shows the horn. The slide moves to the position of the last note played. Off plays the piano. Tap the horn to switch between the straight and trigger drawings. The trigger horn shows B1 through Eb2 with the trigger thrown and prints T positions.
 
-**SHOW POSITIONS.** Prints the slide position on keys a straight tenor trombone can play, and moves the slide on the trombone image. The circle next to the switch sets the color.
+**SHOW POSITIONS.** Prints the slide position on keys the horn can play and over notes on the staff. The circle next to the switch sets the color.
 
-**MIDI.** On sends the keys to a computer and stays quiet on this device. Off plays here. The button beside the switch opens Bluetooth. See MIDI below.
+**MIDI.** On sends the keys to a computer and stays quiet on this device. Off plays here. The button beside the switch opens Bluetooth. The mark is gray while MIDI is off, white while MIDI is on, blinks while advertising, and turns blue when a computer connects. See MIDI below.
 
 **KEY SIGNATURE.** Sets the signature on the score and the SHOW KEY marks.
 
@@ -44,13 +44,13 @@ Logic, Ableton, and MuseScore on the Mac use that same enabled iPad as their MID
 
 **Windows, Wi-Fi.** Put the iPad and the PC on the same network. A guest network that isolates devices will not work. Install the free [rtpMIDI](https://www.tobias-erichsen.de/software/rtpmidi.html) driver, add a session, enable it, and connect to the iPad. If the iPad is not in the list, add it by its address, and allow that UDP port and the next one through the firewall. In MuseScore, select that session as the MIDI input, start note input, and play. The USB cable does not make the iPad a MIDI device on Windows.
 
-**Bluetooth.** Turn MIDI on, tap the button beside the switch, and turn advertising on. On a Mac, pair from the Bluetooth control in MIDI Studio. On Windows 10 or later, pair it as a Bluetooth MIDI device, then choose Trombone Piano as the MIDI input.
+**Bluetooth.** Turn MIDI on, tap the button beside the switch, and turn advertising on. The advertise switch is saved. The mark blinks while this device is advertising and turns blue when a computer connects. On a Mac, pair from the Bluetooth control in MIDI Studio. On Windows 10 or later, pair it as a Bluetooth MIDI device, then choose Trombone Piano as the MIDI input.
 
 ## Code
 
 UIKit, drawn in views rather than built from controls. The iPad target is `TrombonePiano`. Tests are `TrombonePianoTests`.
 
-`PianoViewController` owns the screen and the saved settings. `MoogPanelView` is the control panel, `ScoreView` and `ScoreNotation` are the staff, and `PianoKeyboardView` with `PianoGeometry` is the keybed. `PianoAudio` plays the samples. `MidiOut` sends the notes when MIDI is on. `RosewoodView` draws the mahogany strip. The horn is three images so the outer slide can move on its own: `trombone_inner.png`, `trombone_outer.png`, and `trombone_over.png`.
+`PianoViewController` owns the screen and the saved settings. `MoogPanelView` is the control panel, `ScoreView` and `ScoreNotation` are the staff, and `PianoKeyboardView` with `PianoGeometry` is the keybed. `PianoAudio` plays the samples. `MidiOut` sends the notes when MIDI is on. `BluetoothMidi` advertises the Bluetooth MIDI service and sends those same notes while a computer is connected. `RosewoodView` draws the mahogany strip. The horn is layered so the outer slide can move on its own: `trombone_inner.png`, `trombone_outer.png`, and `trombone_over.png`. The trigger horn uses `trigger_inner.png`, `trigger_outer.png`, `trigger_over.png`, and `trigger_rotate.png`, the last drawn on top when the trigger is thrown.
 
 Build and test from the editor with [Sweetpad](https://sweetpad.hyzyla.dev/). `buildServer.json` is its build server, and `.vscode/settings.json` points it at `TrombonePiano.xcodeproj`. The test target covers key geometry, the panel layout, the staff, the trombone loop, and the MIDI note messages.
 
@@ -60,4 +60,8 @@ Both instruments are Fluid (R3) SoundFont samples, one mp3 per key from A0 throu
 
 A piano note plays its file and stops. A trombone note plays the attack, then loops a slice of the steady tone. The loop is cut on a period of the waveform and crossfaded so the join does not click.
 
-The pictures that ship in the app are the mahogany strip, the three horn layers, and the app icon. The GIMP files in `images/` (`mahogany.xcf`, `trombone.xcf`, `brass.xcf`, and the rest) are the working drawings and are not in the bundle. `images/screenshot.png` is the picture at the top of this file.
+The pictures that ship in the app are the mahogany strip, the horn layers, and the app icon. The GIMP files in `images/` (`mahogany.xcf`, `trombone.xcf`, `trigger.xcf`, `brass.xcf`, and the rest) are the working drawings and are not in the bundle. `images/screenshot.png` is the picture at the top of this file.
+
+## License
+
+MIT. See `LICENSE`. The Fluid (R3) samples carry their own MIT notice in `TrombonePiano/Sounds/NOTICE.txt`.

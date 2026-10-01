@@ -42,6 +42,14 @@ final class PianoKeyboardView: UIView {
         }
     }
 
+    var horn: TromboneHorn = .straight {
+        didSet {
+            if horn != oldValue {
+                setNeedsDisplay()
+            }
+        }
+    }
+
     var noteColor = MoogPalette.labelGreen {
         didSet {
             if noteColor != oldValue {
@@ -496,11 +504,11 @@ final class PianoKeyboardView: UIView {
             if showNotes, !key.isBlack {
                 drawNoteLabel(noteLabel(key.midiNote).uppercased(), in: badgeRect, badge: badge, context: context)
             }
-            if showPositions, let position = trombonePosition(midi: key.midiNote) {
+            if showPositions, let label = trombonePositionLabel(midi: key.midiNote, horn: horn) {
                 let bottom = key.isBlack
                     ? body.maxY - body.height * 0.055
                     : badgeRect.minY - max(1, badge.fontSize * 0.12)
-                drawPositionNumber(position, centerX: body.midX, bottom: bottom, fontSize: badge.fontSize)
+                drawPositionNumber(label, centerX: body.midX, bottom: bottom, fontSize: badge.fontSize)
             }
         }
     }
@@ -562,9 +570,9 @@ final class PianoKeyboardView: UIView {
         )
     }
 
-    private func drawPositionNumber(_ position: Int, centerX: CGFloat, bottom: CGFloat, fontSize: CGFloat) {
+    private func drawPositionNumber(_ label: String, centerX: CGFloat, bottom: CGFloat, fontSize: CGFloat) {
         let font = moogFont(size: fontSize, weight: .medium)
-        let text = "\(position)" as NSString
+        let text = label as NSString
         let textSize = text.size(withAttributes: [.font: font])
         text.draw(
             at: CGPoint(x: centerX - textSize.width / 2, y: bottom - textSize.height),

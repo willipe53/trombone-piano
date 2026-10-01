@@ -26,6 +26,8 @@ final class MidiOut {
     private var output = MIDIPortRef()
     private var held: Set<Int> = []
     private(set) var isEnabled = false
+    /// Note bytes also go here. Bluetooth MIDI uses this while a computer is subscribed.
+    var sendAuxiliary: (([UInt8]) -> Void)?
 
     @discardableResult
     func setEnabled(_ enabled: Bool) -> Bool {
@@ -122,6 +124,7 @@ final class MidiOut {
         }
         guard added else { return }
         MIDIReceived(source, &list)
+        sendAuxiliary?(bytes)
         guard output != 0 else { return }
         let network = MIDINetworkSession.default().destinationEndpoint()
         if network != 0 {

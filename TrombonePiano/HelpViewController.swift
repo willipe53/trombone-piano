@@ -130,15 +130,15 @@ final class HelpViewController: UIViewController, UIPopoverPresentationControlle
             ),
             (
                 "TROMBONE",
-                "On plays the trombone and shows the horn. Off plays the piano."
+                "On plays the trombone and shows the horn. The slide moves to the position of the last note played. Off plays the piano. Tap the horn to switch between the straight and trigger drawings. The trigger horn shows B1 through Eb2 with the trigger thrown and prints T positions."
             ),
             (
                 "SHOW POSITIONS",
-                "Prints the slide position on keys a straight tenor trombone can play, and moves the slide on the trombone image. The circle next to the switch sets the color."
+                "Prints the slide position on keys the horn can play and over notes on the staff. The circle next to the switch sets the color."
             ),
             (
                 "MIDI",
-                "On sends the keys to a computer and stays quiet on this device. Off plays here. The button beside the switch opens Bluetooth. See below for MIDI details."
+                "On sends the keys to a computer and stays quiet on this device. Off plays here. The button beside the switch opens Bluetooth. The mark is gray while MIDI is off, white while MIDI is on, blinks while advertising, and turns blue when a computer connects. See below for MIDI details."
             ),
             (
                 "KEY SIGNATURE",
@@ -150,7 +150,7 @@ final class HelpViewController: UIViewController, UIPopoverPresentationControlle
             ),
             (
                 "MIDI DETAILS",
-                "With MIDI on, the keys send note on and note off, and this device stays quiet. The staff, the horn, and the slide positions still follow the keys. The computer plays its own sound.\nGarageBand on a Mac. Use a data cable and unlock the iPad. Turn MIDI on. On the Mac, open Audio MIDI Setup, choose Window, Show MIDI Studio, and enable the iPad if it is gray. That is once per iPad. The iPad icon is the input. MIDI Studio does not show a port named Trombone Piano.\nIn GarageBand, add a Software Instrument track. The instrument does not matter. Select the track, turn its record button on, and play. GarageBand Settings, Audio/MIDI, leaves MIDI Controller on None. That menu is for control surfaces. An iPad entry under Input Device is the microphone. MIDI Status flashes when a key arrives. If nothing flashes, quit GarageBand, rescan MIDI, and open GarageBand again.\nLogic, Ableton, and MuseScore on the Mac use that same iPad. Other apps on this iPad can use the name Trombone Piano.\nWindows, Wi-Fi. Put the iPad and the PC on the same network. A guest network that isolates devices will not work. Install the free rtpMIDI driver, add a session, enable it, and connect to the iPad. If the iPad is not in the list, add it by its address, and allow that UDP port and the next one through the firewall. In MuseScore, select that session as the MIDI input, start note input, and play. The USB cable does not make the iPad a MIDI device on Windows.\nBluetooth. Turn MIDI on, tap the button beside the switch, and turn advertising on. On a Mac, pair from the Bluetooth control in MIDI Studio. On Windows 10 or later, pair it as a Bluetooth MIDI device, then choose Trombone Piano as the MIDI input."
+                "With MIDI on, the keys send note on and note off, and this device stays quiet. The staff, the horn, and the slide positions still follow the keys. The computer plays its own sound.\nGarageBand on a Mac. Use a data cable and unlock the iPad. Turn MIDI on. On the Mac, open Audio MIDI Setup, choose Window, Show MIDI Studio, and enable the iPad if it is gray. That is once per iPad. The iPad icon is the input. MIDI Studio does not show a port named Trombone Piano.\nIn GarageBand, add a Software Instrument track. The instrument does not matter. Select the track, turn its record button on, and play. GarageBand Settings, Audio/MIDI, leaves MIDI Controller on None. That menu is for control surfaces. An iPad entry under Input Device is the microphone. MIDI Status flashes when a key arrives. If nothing flashes, quit GarageBand, rescan MIDI, and open GarageBand again.\nLogic, Ableton, and MuseScore on the Mac use that same iPad. Other apps on this iPad can use the name Trombone Piano.\nWindows, Wi-Fi. Put the iPad and the PC on the same network. A guest network that isolates devices will not work. Install the free rtpMIDI driver, add a session, enable it, and connect to the iPad. If the iPad is not in the list, add it by its address, and allow that UDP port and the next one through the firewall. In MuseScore, select that session as the MIDI input, start note input, and play. The USB cable does not make the iPad a MIDI device on Windows.\nBluetooth. Turn MIDI on, tap the button beside the switch, and turn advertising on. The advertise switch is saved. The mark blinks while this device is advertising and turns blue when a computer connects. On a Mac, pair from the Bluetooth control in MIDI Studio. On Windows 10 or later, pair it as a Bluetooth MIDI device, then choose Trombone Piano as the MIDI input."
             ),
         ]
         let heading = NSMutableParagraphStyle()
@@ -191,14 +191,41 @@ final class HelpViewController: UIViewController, UIPopoverPresentationControlle
         text.append(privacyText)
         appendHeading("CREDITS", to: text, heading: heading)
         text.append(NSAttributedString(
-            string: "Piano and trombone samples are Fluid (R3), copyright Frank Wen. The license notice is included in the app.",
+            string: "Piano and trombone samples are Fluid (R3), copyright Frank Wen. The license notice follows.",
             attributes: [
                 .font: moogFont(size: 15, weight: .medium),
                 .foregroundColor: UIColor.white.withAlphaComponent(0.88),
                 .paragraphStyle: body,
             ]
         ))
+        if let notice = sampleLicenseNotice() {
+            let noticeStyle = NSMutableParagraphStyle()
+            noticeStyle.lineSpacing = 1
+            noticeStyle.paragraphSpacing = 10
+            text.append(NSAttributedString(string: notice, attributes: [
+                .font: moogFont(size: 12, weight: .medium),
+                .foregroundColor: UIColor.white.withAlphaComponent(0.7),
+                .paragraphStyle: noticeStyle,
+            ]))
+        }
         return text
+    }
+
+    /// The MIT notice shipped with the samples. The file is hard-wrapped, so each body paragraph is joined onto one line. The title and copyright lines at the top keep their own lines.
+    private func sampleLicenseNotice() -> String? {
+        guard let url = Bundle.main.url(forResource: "NOTICE", withExtension: "txt"),
+              let raw = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        let paragraphs = raw
+            .components(separatedBy: "\n\n")
+            .enumerated()
+            .map { index, paragraph in
+                paragraph
+                    .split(separator: "\n", omittingEmptySubsequences: true)
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .joined(separator: index == 0 ? "\n" : " ")
+            }
+            .filter { !$0.isEmpty }
+        return paragraphs.isEmpty ? nil : paragraphs.joined(separator: "\n")
     }
 
     private func appendHeading(_ title: String, to text: NSMutableAttributedString, heading: NSParagraphStyle) {

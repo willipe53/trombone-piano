@@ -1,4 +1,3 @@
-import CoreAudioKit
 import UIKit
 
 final class MoogPanelView: UIView, UIScrollViewDelegate, UIGestureRecognizerDelegate {
@@ -9,6 +8,7 @@ final class MoogPanelView: UIView, UIScrollViewDelegate, UIGestureRecognizerDele
     var onInstrumentChanged: ((KeyboardInstrument) -> Void)?
     var onShowPositionsChanged: ((Bool) -> Void)?
     var onMidiChanged: ((Bool) -> Void)?
+    var onBluetoothAdvertiseChanged: ((Bool) -> Void)?
     var onNoteColorChanged: ((UIColor) -> Void)?
     var onPositionColorChanged: ((UIColor) -> Void)?
     var onKeyHatchChanged: ((KeyHatch) -> Void)?
@@ -32,7 +32,15 @@ final class MoogPanelView: UIView, UIScrollViewDelegate, UIGestureRecognizerDele
     private let instrumentRocker = MoogRocker()
     private let showPositionsRocker = MoogRocker()
     private let midiRocker = MoogRocker()
-    private let bluetoothButton = UIButton(type: .system)
+    private let bluetoothButton = BluetoothGlyphButton()
+    private var bluetoothAppearance = BluetoothAppearance(
+        midiEnabled: false,
+        wantsAdvertising: false,
+        radio: .unknown,
+        advertising: false,
+        connected: false
+    )
+    private weak var advertiseController: BluetoothAdvertiseViewController?
     private let noteColorWell = UIColorWell()
     private let positionColorWell = UIColorWell()
     private let hatchWell = HatchWell()
@@ -102,10 +110,6 @@ final class MoogPanelView: UIView, UIScrollViewDelegate, UIGestureRecognizerDele
         for control in [rocker, showKeyRocker, keepAliveRocker, instrumentRocker, showPositionsRocker, midiRocker, bluetoothButton] {
             control.accessibilityTraits = .button
         }
-        bluetoothButton.configuration = bluetoothButtonConfiguration()
-        bluetoothButton.tintAdjustmentMode = .normal
-        bluetoothButton.isEnabled = false
-        bluetoothButton.alpha = 0.35
         bluetoothButton.addTarget(self, action: #selector(bluetoothTapped), for: .touchUpInside)
         configureColorWell(noteColorWell, title: "Note labels")
         configureColorWell(positionColorWell, title: "Position labels")
@@ -122,7 +126,7 @@ final class MoogPanelView: UIView, UIScrollViewDelegate, UIGestureRecognizerDele
         controlContent.addSubview(positionColorWell)
         controlContent.addSubview(hatchWell)
         controlContent.addSubview(keyLabel)
-        keyButton.showsMenuAsPrimaryAction = true
+        keyButton.addTarget(self, action: #selector(keyButtonTapped), for: .touchUpInside)
         // A presented popover dims the tint, and these plain buttons follow it, so the white title would go black.
         keyButton.tintAdjustmentMode = .normal
         clearButton.tintAdjustmentMode = .normal
@@ -169,6 +173,7 @@ final class MoogPanelView: UIView, UIScrollViewDelegate, UIGestureRecognizerDele
         showPositions: Bool,
         midi: Bool,
         instrument: KeyboardInstrument,
+        horn: TromboneHorn,
         keySignature: KeySignature,
         noteColor: UIColor,
         positionColor: UIColor,
@@ -185,8 +190,6 @@ final class MoogPanelView: UIView, UIScrollViewDelegate, UIGestureRecognizerDele
         instrumentRocker.isOn = instrument == .trombone
         showPositionsRocker.isOn = showPositions
         midiRocker.isOn = midi
-        bluetoothButton.isEnabled = midi
-        bluetoothButton.alpha = midi ? 1 : 0.35
         if noteColorWell.selectedColor?.rgbHex != noteColor.rgbHex {
             noteColorWell.selectedColor = noteColor
         }
@@ -199,6 +202,7 @@ final class MoogPanelView: UIView, UIScrollViewDelegate, UIGestureRecognizerDele
         showPositionsLabel.alpha = positionsAvailable ? 1 : 0.35
         showPositionsRocker.alpha = positionsAvailable ? 1 : 0.35
         score.instrument = instrument
+        score.horn = horn
         score.showPositions = showPositions && positionsAvailable
         if score.keySignature != keySignature {
             presentKey(keySignature, notify: false)
@@ -493,15 +497,28 @@ final class MoogPanelView: UIView, UIScrollViewDelegate, UIGestureRecognizerDele
 
     private func presentKey(_ key: KeySignature, notify: Bool) {
         keyButton.configuration = keyButtonConfiguration(title: key.title)
-        keyButton.menu = UIMenu(children: KeySignature.catalog.map { choice in
-            UIAction(title: choice.title, state: choice.id == key.id ? .on : .off) { [weak self] _ in
-                self?.presentKey(choice, notify: true)
-            }
-        })
         score.keySignature = key
         if notify {
             onKeySignatureChanged?(key)
         }
+    }
+
+    @objc private func keyButtonTapped() {
+        guard let presenter = enclosingViewController(), presenter.presentedViewController == nil else { return }
+        // Piano readers see the treble pattern; trombone readers see the bass pattern, which both score layouts share.
+        let staff: ScoreStaff = score.instrument == .trombone ? .bass : .treble
+        let picker = KeySignaturePickerViewController(selected: score.keySignature, staff: staff)
+        picker.onSelect = { [weak self, weak picker] key in
+            self?.presentKey(key, notify: true)
+            picker?.dismiss(animated: true)
+        }
+        if let popover = picker.popoverPresentationController {
+            popover.sourceView = keyButton
+            popover.sourceRect = keyButton.bounds
+            popover.permittedArrowDirections = [.up, .down]
+            popover.backgroundColor = MoogPalette.panel
+        }
+        presenter.present(picker, animated: true)
     }
 
     private func keyButtonConfiguration(title: String) -> UIButton.Configuration {
@@ -576,28 +593,45 @@ final class MoogPanelView: UIView, UIScrollViewDelegate, UIGestureRecognizerDele
         onShowPositionsChanged?(showPositionsRocker.isOn)
     }
 
-    @objc private func midiChanged() {
-        let enabled = midiRocker.isOn
-        bluetoothButton.isEnabled = enabled
-        bluetoothButton.alpha = enabled ? 1 : 0.35
-        onMidiChanged?(enabled)
-    }
-
-    @objc private func bluetoothTapped() {
-        guard midiRocker.isOn else { return }
-        guard let presenter = enclosingViewController(), presenter.presentedViewController == nil else { return }
-        let midi = CABTMIDILocalPeripheralViewController()
-        let navigation = UINavigationController(rootViewController: midi)
-        navigation.modalPresentationStyle = .formSheet
-        let done = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(dismissBluetooth))
-        midi.navigationItem.rightBarButtonItem = done
-        presenter.present(navigation, animated: true) {
-            midi.navigationItem.rightBarButtonItem = done
+    func applyBluetooth(_ appearance: BluetoothAppearance) {
+        bluetoothAppearance = appearance
+        bluetoothButton.glyphState = appearance.glyph
+        bluetoothButton.accessibilityValue = appearance.statusLine
+        if appearance.midiEnabled {
+            advertiseController?.apply(
+                wantsAdvertising: appearance.wantsAdvertising,
+                status: appearance.statusLine
+            )
+        } else {
+            advertiseController?.dismiss(animated: true)
         }
     }
 
-    @objc private func dismissBluetooth() {
-        enclosingViewController()?.dismiss(animated: true)
+    @objc private func midiChanged() {
+        onMidiChanged?(midiRocker.isOn)
+    }
+
+    @objc private func bluetoothTapped() {
+        guard bluetoothAppearance.midiEnabled else { return }
+        guard let presenter = enclosingViewController(), presenter.presentedViewController == nil else { return }
+        let sheet = BluetoothAdvertiseViewController()
+        sheet.apply(
+            wantsAdvertising: bluetoothAppearance.wantsAdvertising,
+            status: bluetoothAppearance.statusLine
+        )
+        sheet.onAdvertisingChanged = { [weak self] wants in
+            self?.onBluetoothAdvertiseChanged?(wants)
+        }
+        sheet.modalPresentationStyle = .popover
+        if let popover = sheet.popoverPresentationController {
+            popover.sourceView = bluetoothButton
+            popover.sourceRect = bluetoothButton.bounds
+            popover.permittedArrowDirections = [.up, .down]
+            popover.backgroundColor = MoogPalette.panel
+            popover.delegate = sheet
+        }
+        advertiseController = sheet
+        presenter.present(sheet, animated: true)
     }
 
     @objc private func noteColorChanged() {
@@ -665,22 +699,6 @@ final class MoogPanelView: UIView, UIScrollViewDelegate, UIGestureRecognizerDele
             width: diameter,
             height: diameter
         )
-    }
-
-    private func bluetoothButtonConfiguration() -> UIButton.Configuration {
-        var config = UIButton.Configuration.plain()
-        config.image = UIImage(
-            systemName: "bluetooth",
-            withConfiguration: UIImage.SymbolConfiguration(pointSize: 11, weight: .medium)
-        )
-        config.baseForegroundColor = .white
-        config.background.backgroundColor = UIColor(hex: 0x070707)
-        config.background.strokeColor = UIColor(hex: 0x6A6A6A)
-        config.background.strokeWidth = 1
-        config.background.cornerRadius = 12
-        config.cornerStyle = .fixed
-        config.contentInsets = .zero
-        return config
     }
 
     @objc private func clearPressed() {
@@ -886,5 +904,154 @@ private final class CapView: UIView {
         }
         isRaised = raised
         gradient.colors = colors
+    }
+}
+
+final class BluetoothGlyphButton: UIControl {
+    var glyphState: BluetoothGlyphState = .disabled {
+        didSet {
+            guard glyphState != oldValue else { return }
+            applyGlyph()
+        }
+    }
+
+    private let disc = CAShapeLayer()
+    private let rune = CAShapeLayer()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isAccessibilityElement = true
+        backgroundColor = .clear
+        disc.fillColor = UIColor(hex: 0x070707).cgColor
+        disc.strokeColor = UIColor(hex: 0x6A6A6A).cgColor
+        disc.lineWidth = 1
+        rune.fillColor = UIColor(hex: 0x8E8E93).cgColor
+        rune.fillRule = .evenOdd
+        layer.addSublayer(disc)
+        layer.addSublayer(rune)
+        applyGlyph()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        disc.path = UIBezierPath(ovalIn: bounds.insetBy(dx: 0.5, dy: 0.5)).cgPath
+        rune.path = bluetoothRunePath(in: bounds.insetBy(dx: 2, dy: 2)).cgPath
+    }
+
+    private func applyGlyph() {
+        isEnabled = glyphState != .disabled
+        let ground = glyphState == .connected ? UIColor(hex: 0x0A84FF) : UIColor(hex: 0x070707)
+        let mark = glyphState == .disabled ? UIColor(hex: 0x8E8E93) : UIColor.white
+        let stroke = glyphState == .connected
+            ? UIColor.white.withAlphaComponent(0.35)
+            : UIColor(hex: 0x6A6A6A)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        disc.fillColor = ground.cgColor
+        disc.strokeColor = stroke.cgColor
+        rune.fillColor = mark.cgColor
+        CATransaction.commit()
+        if glyphState == .advertising {
+            guard rune.animation(forKey: "blink") == nil else { return }
+            let blink = CABasicAnimation(keyPath: "opacity")
+            blink.fromValue = 1
+            blink.toValue = 0.2
+            blink.duration = 0.55
+            blink.autoreverses = true
+            blink.repeatCount = .infinity
+            blink.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            rune.add(blink, forKey: "blink")
+        } else {
+            rune.opacity = 1
+            rune.removeAnimation(forKey: "blink")
+        }
+    }
+}
+
+/// Bind rune used as the Bluetooth mark, in a 24-point box.
+func bluetoothRunePath(in rect: CGRect) -> UIBezierPath {
+    let sx = rect.width / 24
+    let sy = rect.height / 24
+    func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+        CGPoint(x: rect.minX + x * sx, y: rect.minY + y * sy)
+    }
+    let path = UIBezierPath()
+    path.move(to: p(17.71, 7.71))
+    path.addLine(to: p(12, 2))
+    path.addLine(to: p(11, 2))
+    path.addLine(to: p(11, 9.59))
+    path.addLine(to: p(6.41, 5))
+    path.addLine(to: p(5, 6.41))
+    path.addLine(to: p(10.59, 12))
+    path.addLine(to: p(5, 17.59))
+    path.addLine(to: p(6.41, 19))
+    path.addLine(to: p(11, 14.41))
+    path.addLine(to: p(11, 22))
+    path.addLine(to: p(12, 22))
+    path.addLine(to: p(17.71, 16.29))
+    path.addLine(to: p(13.41, 12))
+    path.close()
+    let top = UIBezierPath()
+    top.move(to: p(13, 5.83))
+    top.addLine(to: p(14.88, 7.71))
+    top.addLine(to: p(13, 9.59))
+    top.close()
+    let bottom = UIBezierPath()
+    bottom.move(to: p(14.88, 16.29))
+    bottom.addLine(to: p(13, 18.17))
+    bottom.addLine(to: p(13, 14.41))
+    bottom.close()
+    path.append(top)
+    path.append(bottom)
+    path.usesEvenOddFillRule = true
+    return path
+}
+
+private final class BluetoothAdvertiseViewController: UIViewController, UIPopoverPresentationControllerDelegate {
+    var onAdvertisingChanged: ((Bool) -> Void)?
+
+    private let caption = moogCaption("ADVERTISE")
+    private let rocker = MoogRocker()
+    private let statusLabel = UILabel()
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = MoogPalette.panel
+        preferredContentSize = CGSize(width: 260, height: 132)
+        rocker.accessibilityLabel = "Advertise"
+        rocker.addTarget(self, action: #selector(changed), for: .valueChanged)
+        statusLabel.font = moogFont(size: 15, weight: .medium)
+        statusLabel.textColor = UIColor.white.withAlphaComponent(0.88)
+        statusLabel.textAlignment = .center
+        view.addSubview(caption)
+        view.addSubview(rocker)
+        view.addSubview(statusLabel)
+    }
+
+    func apply(wantsAdvertising: Bool, status: String) {
+        rocker.isOn = wantsAdvertising
+        statusLabel.text = status
+    }
+
+    func adaptivePresentationStyle(
+        for controller: UIPresentationController,
+        traitCollection: UITraitCollection
+    ) -> UIModalPresentationStyle {
+        .none
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        caption.frame = CGRect(x: 20, y: 22, width: view.bounds.width - 40, height: 16)
+        rocker.frame = CGRect(x: (view.bounds.width - 78) / 2, y: 48, width: 78, height: 36)
+        statusLabel.frame = CGRect(x: 16, y: 96, width: view.bounds.width - 32, height: 20)
+    }
+
+    @objc private func changed() {
+        onAdvertisingChanged?(rocker.isOn)
     }
 }

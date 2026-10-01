@@ -112,6 +112,69 @@ private let inTuneTrombonePartials: Set<Int> = {
     return notes
 }()
 
+enum TromboneHorn: String, CaseIterable {
+    case straight
+    case trigger
+
+    var imageNames: (inner: String, outer: String, over: String, trigger: String?) {
+        switch self {
+        case .straight:
+            return ("trombone_inner", "trombone_outer", "trombone_over", nil)
+        case .trigger:
+            return ("trigger_inner", "trigger_outer", "trigger_over", "trigger_rotate")
+        }
+    }
+
+    /// Width of the horn drawing. Both drawings are 334 points tall.
+    var canvasWidth: Double {
+        switch self {
+        case .straight: return 1498
+        case .trigger: return 1389
+        }
+    }
+
+    /// Bb slide travel, positions 1 through 7, in canvas pixels. First position is the resting drawing.
+    var slideTravel: [Double] {
+        switch self {
+        case .straight: return straightSlideTravel
+        case .trigger: return triggerSlideTravel
+        }
+    }
+
+    /// Fall of the slide tubes per pixel of horizontal travel.
+    var slideSlope: Double {
+        switch self {
+        case .straight: return tromboneSlideSlope
+        case .trigger: return 8.0 / 709.0
+        }
+    }
+
+    /// Past this, the outer slide leaves the inner tubes. The straight drawing is not capped.
+    var maxTravel: Double {
+        switch self {
+        case .straight: return .infinity
+        case .trigger: return 710
+        }
+    }
+}
+
+struct SlideSetting: Equatable {
+    /// Canvas pixels from first position.
+    var travel: Double
+    var trigger: Bool
+    /// "1"…"7" on the Bb slide, "T3"…"T7" with the trigger.
+    var label: String
+}
+
+/// The straight drawing, full width. First position is the resting drawing.
+private let straightSlideTravel = [0.0, 172.0, 244.0, 330.0, 459.0, 660.0, 804.0]
+
+/// Trigger drawing. 3rd and 4th are measured; 2nd, 5th, 6th, and 7th keep the gaps growing out to the eyeballed 7th.
+private let triggerSlideTravel = [0.0, 105.0, 216.0, 287.0, 400.0, 520.0, 650.0]
+
+/// The F attachment lengthens the horn by a fourth.
+private let triggerLengthRatio = pow(2, 5.0 / 12)
+
 /// Shortest slide position, 1 through 7, for a straight tenor trombone. Nil when the note needs an F attachment or sits past the slide.
 func trombonePosition(midi: Int) -> Int? {
     for position in 1...7 {
@@ -127,9 +190,43 @@ func tromboneNeedsFAttachment(midi: Int) -> Bool {
     (35...39).contains(midi)
 }
 
+/// E♭2 is 3rd, then one position longer per semitone down to B1 at 7th.
+private func triggerAttachmentPosition(midi: Int) -> Int? {
+    guard tromboneNeedsFAttachment(midi: midi) else { return nil }
+    return 3 + (39 - midi)
+}
+
+private func triggerAttachmentTravel(position: Int) -> Double {
+    let raw = (triggerSlideTravel[position - 1] * triggerLengthRatio).rounded()
+    return min(raw, TromboneHorn.trigger.maxTravel)
+}
+
+func tromboneSlide(midi: Int, horn: TromboneHorn) -> SlideSetting? {
+    if let position = trombonePosition(midi: midi) {
+        let travel = min(horn.slideTravel[position - 1], horn.maxTravel)
+        return SlideSetting(travel: travel, trigger: false, label: "\(position)")
+    }
+    if horn == .trigger, let position = triggerAttachmentPosition(midi: midi) {
+        return SlideSetting(
+            travel: triggerAttachmentTravel(position: position),
+            trigger: true,
+            label: "T\(position)"
+        )
+    }
+    return nil
+}
+
+func trombonePositionLabel(midi: Int, horn: TromboneHorn) -> String? {
+    tromboneSlide(midi: midi, horn: horn)?.label
+}
+
 /// Red line drawn over the horn when the slide has no position for this note.
-func tromboneHornMessage(midi: Int) -> String? {
+/// On the trigger horn, B1 through E♭2 have positions, so they draw no line.
+func tromboneHornMessage(midi: Int, horn: TromboneHorn = .straight) -> String? {
     if tromboneNeedsFAttachment(midi: midi) {
+        if horn == .trigger {
+            return nil
+        }
         return "requires F attachment"
     }
     if trombonePosition(midi: midi) != nil {
@@ -141,19 +238,25 @@ func tromboneHornMessage(midi: Int) -> String? {
     return "Play it anywhere you like!"
 }
 
-/// Slide travel at the full 1498-point drawing. First position is the resting drawing.
-private let tromboneSlideTravel = [0.0, 172.0, 244.0, 330.0, 459.0, 660.0, 804.0]
-
 func tromboneOuterShift(position: Int, displayedWidth: Double, fullWidth: Double = 1498) -> Double {
     guard fullWidth > 0, (1...7).contains(position) else { return 0 }
-    return tromboneSlideTravel[position - 1] * displayedWidth / fullWidth
+    return straightSlideTravel[position - 1] * displayedWidth / fullWidth
 }
 
-/// The slide tubes in the drawing fall 9 pixels over the 795 pixels from x=627 to the water key at x=1422.
+func tromboneOuterShift(travel: Double, displayedWidth: Double, horn: TromboneHorn) -> Double {
+    guard horn.canvasWidth > 0 else { return 0 }
+    return travel * displayedWidth / horn.canvasWidth
+}
+
+/// The slide tubes in the straight drawing fall 9 pixels over the 795 pixels from x=627 to the water key at x=1422.
 let tromboneSlideSlope = 9.0 / 795.0
 
 func tromboneOuterDrop(horizontal: Double) -> Double {
     horizontal * tromboneSlideSlope
+}
+
+func tromboneOuterDrop(horizontal: Double, horn: TromboneHorn) -> Double {
+    horizontal * horn.slideSlope
 }
 
 struct SignatureMark: Equatable {
