@@ -1,0 +1,82 @@
+# Same exclusions as .gitignore, except /assets/sounds/.
+# Those wav files are generated locally and are not committed.
+# EAS Build still needs them, because src/sampleManifest.ts requires them.
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xcscmblueprint
+xcuserdata/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# macOS
+.DS_Store
+
+# Swift Package Manager
+.swiftpm/
+.build/
+
+scratch.txt
+
+# Local trombone notes and reference files. Not part of the public app repo.
+sheet music/
+media/
+docs/
+counterweight/
+
+# React Native
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+*.pem
+
+# local env files
+.env*.local
+.env.deploy
+
+# typescript
+*.tsbuildinfo
+
+# generated native folders
+/ios
+/android
+
+# CanvasKit binary for the web keybed. npm run web copies it into public/.
+/public/canvaskit.wasm
+
+images/16ltm_couch.png
+images/alessi1.png
+images/alessi2.png
+images/alessi3.png
+images/alessi_trigger.png
+images/etching.png
+images/etching2.png
+images/mute_stand.png
+images/old_trombone.png

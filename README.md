@@ -1,67 +1,52 @@
-![Trombone Piano on iPad](images/screenshot.png)
-
 # Trombone Piano
 
-I was just about to buy an MPK Mini Play to work out some tricky melodies on the trombone when I realized it would be more fun to build my own.
+The app opens on the red and blue pills. On the web the address is `/` for the pills, `/piano` for the keyboard, `/games` for the games, and `/help` for the explanation. The browser back button returns to the previous address. Red is the instrument: the control column, the staff, the mahogany strip with the horn, and the 88 keys. Blue is the games, Golf in bass, Golf in tenor, and Scale inventory. Note names sit on the white keys. Trombone also shows slide positions, and a tap on the horn switches the straight horn and the trigger horn. The strip scrolls the keys. Arrows at the ends of the strip show which way the keys still move. Tapping an arrow shifts the keyboard so the white key at that end stays in view at the other end. MIDI is an iOS-only switch. Android and the web do not show it.
 
-It's just a simple touch keyboard. Touch the keys to play, scroll to see the whole keyboard by sliding along the mahogany strip, and read the notes on a staff. Put in some helpers for trombone players who, like me, struggle with advanced topics like tenor clef and keys with sharps.
+The drawings follow the Swift panel in layout and color. The title is a Futura Medium wordmark. The other type is Roboto Medium. The Swift app uses Futura Medium throughout.
 
-## What it does
+Sound uses the playback route `react-native-audio-api` sets up. Headphones and the system route are left alone.
 
-**KEYBOARD.** Polyphonic. Slide the keyboard back and forth with the mahogany strip.
+The samples stay in `swift_version/TrombonePiano/Sounds`. The Xcode app is in `swift_version/`. Piano plays a sample and fades out on release. Trombone plays the attack, then the same crossfaded loop as the Swift app.
 
-**KEY SIZE.** Sets how large the keys are.
+The first launch loads trombone. Piano loads the first time it is selected. The keys stay off until that instrument has decoded.
 
-**SHOW NOTES.** Prints the note name on each white key. The circle next to the switch sets the color.
+## Run
 
-**SHOW KEY.** Marks keys outside the key signature. The circle next to the switch sets the pattern.
+From this directory:
 
-**KEEP ALIVE.** Leaves the screen on while the app is open.
+```bash
+npx expo start --web
+npx expo run:ios
+npx expo run:ios --device
+npx expo run:android
+npx expo run:android --device
+```
 
-**TROMBONE.** On plays the trombone and shows the horn. The slide moves to the position of the last note played. Off plays the piano. Tap the horn to switch between the straight and trigger drawings. The trigger horn shows B1 through Eb2 with the trigger thrown and prints T positions.
+The web build loads CanvasKit from `public/canvaskit.wasm`. `npm run web` copies that file out of `canvaskit-wasm` before starting. It is not committed.
 
-**SHOW POSITIONS.** Prints the slide position on keys the horn can play and over notes on the staff. The circle next to the switch sets the color.
+`react-native-audio-api` is not in Expo Go. The iOS and Android commands build a development client, which takes a while the first time. After that client is installed, `npx expo start --dev-client` reloads it without rebuilding. Chrome is `start --web`. If the server says it is using Expo Go, press `s` to switch to the development build.
 
-**MIDI.** On sends the keys to a computer and stays quiet on this device. Off plays here. The button beside the switch opens Bluetooth. The mark is gray while MIDI is off, white while MIDI is on, blinks while advertising, and turns blue when a computer connects. See MIDI below.
+`expo-screen-orientation` locks landscape only while the piano is showing on a phone. The opening screen, help, and the games turn, and the piano turns on an iPad. Adding that package needs one rebuild of the iOS and Android development clients before the lock applies.
 
-**KEY SIGNATURE.** Sets the signature on the score and the SHOW KEY marks.
+The iPhone install uses the same Apple development team as the app already for sale. The bundle id is `com.extentdevices.trombone-piano`, so a development install on a phone replaces the App Store copy already on that phone. The Android package is `com.extentdevices.trombonepiano`. Turn on USB debugging before `run:android --device`.
 
-**SCORE.** Notes you play are written on the right. Trombone uses tenor and bass clef. Piano uses treble and bass. CLEAR SCORE empties it. With show positions on, the trombone score also prints the position above each note. Pinch the staff to grow or shrink it, and slide it to look around. RECENTER puts that view back.
+Web hosting and mail are in [DEPLOYMENT.md](DEPLOYMENT.md). Store notes are in [app-store/NOTES.md](app-store/NOTES.md) and [play-store/NOTES.md](play-store/NOTES.md).
 
-## MIDI
+Playback follows the library's audio session. A tethered phone uses whatever route the system picks.
 
-With MIDI on, the keys send note on and note off on channel 1, and this device stays quiet. The source is named Trombone Piano. The staff, the horn, and the slide positions still follow the keys. The computer plays its own sound. Other apps on the iPad can use Trombone Piano as a MIDI input.
+`npm test` runs the sample checks and the ported geometry, notation, chart, and game rules.
 
-**Mac and GarageBand.** Plug the iPad into the Mac with a data cable and unlock it. Turn MIDI on in the app. The iPad stays quiet.
+The app plays Apple-decoded copies of the Fluid mp3s, not the mp3s themselves. On iOS the audio library would otherwise decode those files with its own mp3 decoder, which does not match the Swift app. `npm run decode` rebuilds `assets/sounds` with `afconvert`. That directory is local and is not committed.
 
-On the Mac, open Audio MIDI Setup from Applications → Utilities. Choose Window → Show MIDI Studio. The iPad is in that window. If it is gray, select it and click Enable. That is once per iPad. The iPad icon is the MIDI input. MIDI Studio does not add a port named Trombone Piano.
+## Listen
 
-Open GarageBand and add a Software Instrument track. Any instrument works. Select the track, turn on its record button, and play a key. GarageBand plays the sound.
+Judge the sound in Chrome, on the tethered iPhone, and on the tethered Android phone. The simulators only need to show that a note comes out.
 
-GarageBand → Settings → Audio/MIDI leaves MIDI Controller on None. That menu is for control-surface profiles. An iPad entry under Input Device is the iPad microphone. MIDI Status flashes when a note arrives. If it never flashes, quit GarageBand, click Rescan MIDI in MIDI Studio, and open GarageBand again with the app's MIDI switch already on.
+- The selected instrument finishes loading.
+- A piano note starts on the sample and stops on release without a click.
+- Three piano notes sound together, from C E G and from fingers on a touchscreen.
+- A trombone note held for several seconds loops without a click, then fades out on release.
+- The other instrument plays after the switch.
+- A low note and a high note are checked, not only the middle octave.
 
-Logic, Ableton, and MuseScore on the Mac use that same enabled iPad as their MIDI input. SweetPad can stay attached on the cable. After a rebuild, rescan MIDI if the notes stop.
-
-**Windows, Wi-Fi.** Put the iPad and the PC on the same network. A guest network that isolates devices will not work. Install the free [rtpMIDI](https://www.tobias-erichsen.de/software/rtpmidi.html) driver, add a session, enable it, and connect to the iPad. If the iPad is not in the list, add it by its address, and allow that UDP port and the next one through the firewall. In MuseScore, select that session as the MIDI input, start note input, and play. The USB cable does not make the iPad a MIDI device on Windows.
-
-**Bluetooth.** Turn MIDI on, tap the button beside the switch, and turn advertising on. The advertise switch is saved. The mark blinks while this device is advertising and turns blue when a computer connects. On a Mac, pair from the Bluetooth control in MIDI Studio. On Windows 10 or later, pair it as a Bluetooth MIDI device, then choose Trombone Piano as the MIDI input.
-
-## Code
-
-UIKit, drawn in views rather than built from controls. The iPad target is `TrombonePiano`. Tests are `TrombonePianoTests`.
-
-`PianoViewController` owns the screen and the saved settings. `MoogPanelView` is the control panel, `ScoreView` and `ScoreNotation` are the staff, and `PianoKeyboardView` with `PianoGeometry` is the keybed. `PianoAudio` plays the samples. `MidiOut` sends the notes when MIDI is on. `BluetoothMidi` advertises the Bluetooth MIDI service and sends those same notes while a computer is connected. `RosewoodView` draws the mahogany strip. The horn is layered so the outer slide can move on its own: `trombone_inner.png`, `trombone_outer.png`, and `trombone_over.png`. The trigger horn uses `trigger_inner.png`, `trigger_outer.png`, `trigger_over.png`, and `trigger_rotate.png`, the last drawn on top when the trigger is thrown.
-
-Build and test from the editor with [Sweetpad](https://sweetpad.hyzyla.dev/). `buildServer.json` is its build server, and `.vscode/settings.json` points it at `TrombonePiano.xcodeproj`. The test target covers key geometry, the panel layout, the staff, the trombone loop, and the MIDI note messages.
-
-## Sounds and art
-
-Both instruments are Fluid (R3) SoundFont samples, one mp3 per key from A0 through C8. File names use flats (`piano-Bb4.mp3`, `trombone-Eb3.mp3`), which is how those samples are spelled. The copyright notice is `TrombonePiano/Sounds/NOTICE.txt`.
-
-A piano note plays its file and stops. A trombone note plays the attack, then loops a slice of the steady tone. The loop is cut on a period of the waveform and crossfaded so the join does not click.
-
-The pictures that ship in the app are the mahogany strip, the horn layers, and the app icon. The GIMP files in `images/` (`mahogany.xcf`, `trombone.xcf`, `trigger.xcf`, `brass.xcf`, and the rest) are the working drawings and are not in the bundle. `images/screenshot.png` is the picture at the top of this file.
-
-## License
-
-MIT. See `LICENSE`. The Fluid (R3) samples carry their own MIT notice in `TrombonePiano/Sounds/NOTICE.txt`.
+If the status line says trombone notes are playing the whole file, the loop was not built for those notes.

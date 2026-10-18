@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "Trombone Piano",
+    "slug": "trombone-piano",
+    "version": "2.0.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.extentdevices.trombone-piano",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "Trombone Piano advertises as a Bluetooth MIDI keyboard so a computer can receive the notes.",
+        "NSLocalNetworkUsageDescription": "Trombone Piano advertises a MIDI session on the local network so a computer can receive the notes.",
+        "NSBonjourServices": [
+          "_apple-midi._udp",
+          "_apple-midi._udp"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.extentdevices.trombonepiano",
+      "blockedPermissions": [
+        "com.google.android.gms.permission.AD_ID"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": []
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "react-native-audio-api",
+        {
+          "iosBackgroundMode": false,
+          "androidForegroundService": false,
+          "androidPermissions": []
+        }
+      ],
+      "expo-asset"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "d33dc768-982d-4c42-ab6b-832ea3d06d7e"
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "trombone-midi",
+  "version": "1.0.0",
+  "description": "iOS MIDI source and Bluetooth MIDI peripheral for Trombone Piano",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}

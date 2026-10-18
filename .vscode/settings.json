@@ -1,7 +1,7 @@
 {
-  "sweetpad.build.xcodeWorkspacePath": "TrombonePiano.xcodeproj/project.xcworkspace",
+  "sweetpad.build.xcodeWorkspacePath": "swift_version/TrombonePiano.xcodeproj/project.xcworkspace",
   "sweetpad.build.destination": {
-    "id": "iosdevice-00008112-000E6539018BC01E",
-    "type": "iOSDevice"
+    "id": "iossimulator-04EC38B1-DF29-4228-9780-3F61C97AC6AF",
+    "type": "iOSSimulator"
   }
 }
