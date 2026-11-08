@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Pressable, StyleSheet, Switch, Text, View } from 'react-native'
+import { Asset } from 'expo-asset'
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
 import { useHeaderLeading } from './AppFrame'
 import { getEngine } from './engine'
 import { GameLog, gameAnswerEntry, type GameAnswer } from './gameLog'
@@ -7,9 +8,12 @@ import { fileGameLogStore } from './gameLogStore'
 import { GolfDeal, GolfLevel, type GolfLevel as GolfLevelValue } from './golfDeal'
 import { GolfBoard } from './GolfBoard'
 import { readInstrumentSettings } from './instrumentSettings'
+import { helpParagraph } from './noticeText'
 import { KeySignature } from './scoreNotation'
 import { ScaleBoard } from './ScaleBoard'
 import { ScaleInventoryDeal, ScaleLevel, type ScaleLevel as ScaleLevelValue } from './scaleInventory'
+
+const helpAsset = require('../swift_version/TrombonePiano/Help.md')
 
 type Kind = 'chooser' | 'golf' | 'scale'
 
@@ -23,6 +27,8 @@ export function GamesScreen() {
   const [scaleLevel, setScaleLevel] = useState<ScaleLevelValue>(ScaleLevel.start(KeySignature.bFlat))
   const [cleared, setCleared] = useState(false)
   const [tick, setTick] = useState(0)
+  const [helpSource, setHelpSource] = useState('')
+  const [helpOpen, setHelpOpen] = useState(false)
   const seed = useRef(1)
   const phrase = useRef(0)
   const sound = useRef(true)
@@ -35,6 +41,13 @@ export function GamesScreen() {
     const engine = getEngine()
     engine.setInstrument('trombone')
     void engine.load('trombone').then(() => engine.resume())
+    let cancelled = false
+    void readHelp().then((text) => {
+      if (!cancelled) setHelpSource(text)
+    })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   function play(notes: number[]): void {
@@ -101,10 +114,12 @@ export function GamesScreen() {
     games() {},
     undo() {},
     peek() {},
+    help() {},
     sound(_value: boolean) {},
   })
   chrome.current = {
     games() {
+      setHelpOpen(false)
       setKind('chooser')
     },
     undo() {
@@ -122,12 +137,16 @@ export function GamesScreen() {
       setTick((value) => value + 1)
       if (sound.current) play([answer.note])
     },
+    help() {
+      setHelpOpen(true)
+    },
     sound(value: boolean) {
       sound.current = value
       setSoundOn(value)
       if (!value) phrase.current += 1
     },
   }
+  const helpTitle = kind === 'golf' ? 'Golf' : 'Scale inventory'
   const dealHeader = useMemo(
     () =>
       kind === 'chooser' ? null : (
@@ -171,6 +190,11 @@ export function GamesScreen() {
               }}
             />
           ) : null}
+          <GameHelp
+            visible={helpOpen}
+            text={helpParagraph(helpSource, helpTitle) ?? ''}
+            onDismiss={() => setHelpOpen(false)}
+          />
           <Text style={styles.nextLine}>
             {cleared ? 'Cleared.' : kind === 'golf' ? GolfLevel.nextLine(golfLevel) : ScaleLevel.nextLine(scaleLevel)}
           </Text>
@@ -212,7 +236,7 @@ function GameDealHeader({
   kind: Kind
   soundOn: boolean
   peekEnabled: boolean
-  chrome: { current: { games: () => void; undo: () => void; peek: () => void; sound: (value: boolean) => void } }
+  chrome: { current: { games: () => void; undo: () => void; peek: () => void; help: () => void; sound: (value: boolean) => void } }
 }) {
   return (
     <>
@@ -234,10 +258,38 @@ function GameDealHeader({
           </Pressable>
         </>
       ) : null}
+      <Pressable accessibilityLabel="Help" onPress={() => chrome.current.help()} style={styles.button}>
+        <Text style={styles.buttonText}>HELP</Text>
+      </Pressable>
       <Text style={styles.soundLabel}>SOUND</Text>
       <Switch accessibilityLabel="Sound" value={soundOn} onValueChange={(value) => chrome.current.sound(value)} />
     </>
   )
+}
+
+function GameHelp({ visible, text, onDismiss }: { visible: boolean; text: string; onDismiss: () => void }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
+      <View style={styles.shade}>
+        <View style={styles.card}>
+          <ScrollView style={styles.helpScroll}>
+            <Text style={styles.helpBody}>{text}</Text>
+          </ScrollView>
+          <Pressable accessibilityLabel="Dismiss" onPress={onDismiss} style={styles.dismiss}>
+            <Text style={styles.buttonText}>DISMISS</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  )
+}
+
+async function readHelp(): Promise<string> {
+  const asset = Asset.fromModule(helpAsset)
+  if (Platform.OS === 'web') return (await fetch(asset.uri)).text()
+  await asset.downloadAsync()
+  const { File } = await import('expo-file-system')
+  return new File(asset.localUri ?? asset.uri).textSync()
 }
 
 const styles = StyleSheet.create({
@@ -251,4 +303,9 @@ const styles = StyleSheet.create({
   soundLabel: { color: '#17803A', fontSize: 12 },
   nextLine: { color: '#F4F1EA', textAlign: 'center', marginBottom: 8 },
   footer: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 8, paddingBottom: 8 },
+  shade: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 24 },
+  card: { maxHeight: '80%', backgroundColor: '#1B1B1B', borderRadius: 12, padding: 16, gap: 16 },
+  helpScroll: { flexShrink: 1 },
+  helpBody: { color: '#F4F1EA', fontSize: 16, lineHeight: 22 },
+  dismiss: { minHeight: 36, paddingHorizontal: 10, backgroundColor: '#2A2A2A', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' },
 })

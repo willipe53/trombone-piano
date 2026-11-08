@@ -1,68 +1,86 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Asset } from 'expo-asset'
+import { Canvas, Group, Path, Skia } from '@shopify/react-native-skia'
 import { Platform, StyleSheet, View } from 'react-native'
-import { Canvas, Group, ImageSVG, useSVG } from '@shopify/react-native-skia'
 import { CloseBall } from './MoogChrome'
 import { fittedTitleSize, titleBallSize, titleBandHeight, titleGap, titleMarkSize, titleText } from './panelMeasure'
 
 const titleMark = require('../assets/trombone-piano-title.svg')
 const titleMarkIntrinsic = { width: 2270.715, height: 188.418 }
 
-function PlacedMark({
-  svg,
-  x,
-  y,
-  width,
-  height,
-}: {
-  svg: NonNullable<ReturnType<typeof useSVG>>
-  x: number
-  y: number
-  width: number
-  height: number
-}) {
-  if (Platform.OS !== 'web') {
-    return <ImageSVG svg={svg} x={x} y={y} width={width} height={height} />
-  }
-  return (
-    <Group
-      transform={[
-        { translateX: x },
-        { translateY: y },
-        { scaleX: width / titleMarkIntrinsic.width },
-        { scaleY: height / titleMarkIntrinsic.height },
-      ]}
-    >
-      <ImageSVG svg={svg} />
-    </Group>
-  )
+function svgPathData(source: string): string[] {
+  const paths: string[] = []
+  const pattern = /<path\b[^>]*\bd="([^"]+)"/g
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(source))) paths.push(match[1])
+  return paths
+}
+
+function useTitlePaths(): string[] | null {
+  const [paths, setPaths] = useState<string[] | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const asset = Asset.fromModule(titleMark)
+      let text: string
+      if (Platform.OS === 'web') {
+        text = await (await fetch(asset.uri)).text()
+      } else {
+        await asset.downloadAsync()
+        const { File } = await import('expo-file-system')
+        text = new File(asset.localUri ?? asset.uri).textSync()
+      }
+      if (!cancelled) setPaths(svgPathData(text))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  return paths
 }
 
 export function TitleWordmark({ width, height }: { width: number; height: number }) {
-  const svg = useSVG(titleMark)
   return (
     <View accessibilityLabel={titleText} style={{ width, height }}>
-      <Canvas style={{ width, height }}>
-        {svg ? <PlacedMark svg={svg} x={0} y={0} width={width} height={height} /> : null}
-      </Canvas>
+      <Wordmark width={width} height={height} />
     </View>
   )
 }
 
+function Wordmark({ width, height }: { width: number; height: number }) {
+  const paths = useTitlePaths()
+  if (!paths || width <= 0 || height <= 0) return null
+  const scaleX = width / titleMarkIntrinsic.width
+  const scaleY = height / titleMarkIntrinsic.height
+  return (
+    <Canvas style={{ width, height }}>
+      <Group transform={[{ scaleX }, { scaleY }]}>
+        {paths.map((data) => (
+          <FilledPath key={data} data={data} />
+        ))}
+      </Group>
+    </Canvas>
+  )
+}
+
+function FilledPath({ data }: { data: string }) {
+  const path = useMemo(() => Skia.Path.MakeFromSVGString(data), [data])
+  if (!path) return null
+  return <Path path={path} color="#FFFFFF" style="fill" />
+}
+
 export function AppTitle({ width, onClose }: { width: number; onClose: () => void }) {
   const available = Math.max(0, width - titleBallSize - titleGap)
-  const svg = useSVG(titleMark)
   const size = useMemo(
     () => fittedTitleSize(available, (fontSize) => titleMarkSize(fontSize).width),
     [available],
   )
   const mark = titleMarkSize(size)
-  const x = Math.max(0, available - mark.width)
-  const y = (titleBandHeight - mark.height) / 2
   return (
     <View accessibilityLabel={titleText} style={[styles.row, { width }]}>
-      <Canvas style={{ width: available, height: titleBandHeight }}>
-        {svg ? <PlacedMark svg={svg} x={x} y={y} width={mark.width} height={mark.height} /> : null}
-      </Canvas>
+      <View style={[styles.markSlot, { width: available }]}>
+        <Wordmark width={mark.width} height={mark.height} />
+      </View>
       <View style={{ width: titleGap }} />
       <CloseBall onPress={onClose} />
     </View>
@@ -71,4 +89,5 @@ export function AppTitle({ width, onClose }: { width: number; onClose: () => voi
 
 const styles = StyleSheet.create({
   row: { height: titleBandHeight, flexDirection: 'row', alignItems: 'center' },
+  markSlot: { height: titleBandHeight, alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden' },
 })

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Asset } from 'expo-asset'
 import { Canvas, ImageSVG, useSVG } from '@shopify/react-native-skia'
-import { Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Image, Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { versionLabel } from './buildInfo'
 import { joinLicenseNotice, parseHelp, type HelpBlock } from './noticeText'
 
@@ -37,7 +37,7 @@ export function HelpScreen() {
   }, [])
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         {blocks.map((block, index) =>
           block.kind === 'heading' ? (
             <View key={index} style={styles.heading}>
@@ -61,6 +61,11 @@ function HelpIcon({ name }: { name: string }) {
 }
 
 function LoadedIcon({ source }: { source: number }) {
+  if (Platform.OS === 'web') return <Image source={source} style={styles.icon} resizeMode="contain" />
+  return <SkiaIcon source={source} />
+}
+
+function SkiaIcon({ source }: { source: number }) {
   const svg = useSVG(source)
   if (!svg) return <View style={styles.icon} />
   return (
@@ -100,6 +105,7 @@ async function readAsset(moduleId: number): Promise<string> {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#000000' },
+  scroll: { flex: 1 },
   content: { paddingHorizontal: 20, paddingBottom: 32, gap: 12 },
   heading: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
   headingText: { color: '#FFFFFF', fontSize: 20 },

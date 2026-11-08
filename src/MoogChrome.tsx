@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Pressable, StyleSheet, View } from 'react-native'
+import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native'
 import { Canvas, Circle, Group, Line, LinearGradient, Path, RadialGradient, Rect, Skia, vec } from '@shopify/react-native-skia'
 import { hatchPath, type KeyHatch } from './keyHatch'
 import { companionWidth } from './panelMeasure'
@@ -155,25 +155,32 @@ export function CloseBall({ onPress }: { onPress: () => void }) {
   const inset = 9.5
   return (
     <Pressable accessibilityLabel="Close" onPress={onPress} style={styles.ballHit}>
-      <Canvas style={{ width: size, height: size }}>
-        <Circle cx={size / 2} cy={size / 2} r={size / 2}>
-          <RadialGradient c={vec(11, 9)} r={18} colors={['#FFFFFF', '#D0D0D0', '#7A7A7A']} />
-        </Circle>
-        <Line
-          p1={vec(inset, inset)}
-          p2={vec(size - inset, size - inset)}
-          color="#1A1A1A"
-          strokeWidth={2.2}
-          strokeCap="round"
-        />
-        <Line
-          p1={vec(size - inset, inset)}
-          p2={vec(inset, size - inset)}
-          color="#1A1A1A"
-          strokeWidth={2.2}
-          strokeCap="round"
-        />
-      </Canvas>
+      {Platform.OS === 'web' ? (
+        <View style={styles.webBall}>
+          <View style={[styles.webArm, styles.webArmDown]} />
+          <View style={[styles.webArm, styles.webArmUp]} />
+        </View>
+      ) : (
+        <Canvas style={{ width: size, height: size }}>
+          <Circle cx={size / 2} cy={size / 2} r={size / 2}>
+            <RadialGradient c={vec(11, 9)} r={18} colors={['#FFFFFF', '#D0D0D0', '#7A7A7A']} />
+          </Circle>
+          <Line
+            p1={vec(inset, inset)}
+            p2={vec(size - inset, size - inset)}
+            color="#1A1A1A"
+            strokeWidth={2.2}
+            strokeCap="round"
+          />
+          <Line
+            p1={vec(size - inset, inset)}
+            p2={vec(inset, size - inset)}
+            color="#1A1A1A"
+            strokeWidth={2.2}
+            strokeCap="round"
+          />
+        </Canvas>
+      )}
     </Pressable>
   )
 }
@@ -181,5 +188,22 @@ export function CloseBall({ onPress }: { onPress: () => void }) {
 const styles = StyleSheet.create({
   fader: { height: 36, justifyContent: 'center' },
   wellHit: { width: wellSize, height: wellSize },
-  ballHit: { width: 30, height: 30 },
+  ballHit: { width: 30, height: 30, zIndex: 1 },
+  webBall: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundImage: 'radial-gradient(18px circle at 11px 9px, #FFFFFF, #D0D0D0, #7A7A7A)',
+  },
+  webArm: {
+    position: 'absolute',
+    width: 15.5,
+    height: 2.2,
+    borderRadius: 1.1,
+    backgroundColor: '#1A1A1A',
+  },
+  webArmDown: { transform: [{ rotate: '45deg' }] },
+  webArmUp: { transform: [{ rotate: '-45deg' }] },
 })

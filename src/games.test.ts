@@ -3,12 +3,23 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { GameLog, type GameLogEntry, type GameLogStore } from './gameLog'
+import { helpParagraph } from './noticeText'
 import { GolfDeal, GolfLevel } from './golfDeal'
 import { conventionalStop, landingStop, playingStops, slideStopLabel, slideStopsAreNeighbors } from './playingChart'
 import { KeySignature } from './scoreNotation'
 import { ScaleInventoryDeal, ScaleLevel } from './scaleInventory'
 
 const sharpSecond = { number: 2, short: true }
+const help = readFileSync(new URL('../swift_version/TrombonePiano/Help.md', import.meta.url), 'utf8')
+
+describe('game help', () => {
+  it('uses the Golf and Scale inventory paragraphs from the help text', () => {
+    expect(helpParagraph(help, 'Golf')).toMatch(/^Golf, bass and Golf, tenor/)
+    expect(helpParagraph(help, 'Scale inventory')).toMatch(/^One octave of a named major key/)
+    expect(helpParagraph(help, 'Keyboard')).not.toMatch(/Golf, bass/)
+    expect(helpParagraph(help, 'Missing')).toBeNull()
+  })
+})
 
 describe('playing chart', () => {
   it('treats a short second as a neighbor of first and third', () => {

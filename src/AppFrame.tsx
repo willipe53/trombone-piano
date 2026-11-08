@@ -35,10 +35,28 @@ export function AppFrame({
   const setLeading = useCallback((node: ReactNode) => {
     setLeadingState((current) => (current === node ? current : node))
   }, [])
-  const showHeader = onClose !== undefined
   const room = Math.max(0, headerWidth - (leading ? leadingWidth + 8 : 0))
   const block = titleBlockWidth(room)
-  const top = insets.top + (showHeader && insetContent ? headerClearance() : 0)
+  const header = onClose ? (
+    <View
+      pointerEvents="box-none"
+      onLayout={(event) => setHeaderWidth(event.nativeEvent.layout.width)}
+      style={styles.header}
+    >
+      <View pointerEvents="box-none" style={styles.leading}>
+        {leading ? (
+          <View
+            pointerEvents="box-none"
+            style={styles.leadingRow}
+            onLayout={(event) => setLeadingWidth(event.nativeEvent.layout.width)}
+          >
+            {leading}
+          </View>
+        ) : null}
+      </View>
+      <AppTitle width={block} onClose={onClose} />
+    </View>
+  ) : null
   return (
     <LeadingContext.Provider value={setLeading}>
       <View style={[styles.frame, { backgroundColor: background }]}>
@@ -46,21 +64,21 @@ export function AppFrame({
           style={[
             styles.body,
             {
-              paddingTop: top,
+              paddingTop: insets.top,
               paddingBottom: insets.bottom,
               paddingLeft: insets.left,
               paddingRight: insets.right,
             },
           ]}
         >
-          {children}
+          {insetContent ? <View style={styles.headerSlot}>{header}</View> : null}
+          <View style={styles.content}>{children}</View>
         </View>
-        {onClose ? (
+        {!insetContent && header ? (
           <View
             pointerEvents="box-none"
-            onLayout={(event) => setHeaderWidth(event.nativeEvent.layout.width)}
             style={[
-              styles.header,
+              styles.overlay,
               {
                 top: insets.top + titleTopMargin,
                 left: insets.left,
@@ -68,18 +86,7 @@ export function AppFrame({
               },
             ]}
           >
-            <View pointerEvents="box-none" style={styles.leading}>
-              {leading ? (
-                <View
-                  pointerEvents="box-none"
-                  style={styles.leadingRow}
-                  onLayout={(event) => setLeadingWidth(event.nativeEvent.layout.width)}
-                >
-                  {leading}
-                </View>
-              ) : null}
-            </View>
-            <AppTitle width={block} onClose={onClose} />
+            {header}
           </View>
         ) : null}
       </View>
@@ -88,10 +95,20 @@ export function AppFrame({
 }
 
 const styles = StyleSheet.create({
-  frame: { flex: 1 },
+  frame: { flex: 1, position: 'relative' },
   body: { flex: 1 },
-  header: {
+  content: { flex: 1 },
+  headerSlot: {
+    height: headerClearance(),
+    paddingTop: titleTopMargin,
+    paddingRight: titleRightMargin,
+    justifyContent: 'flex-end',
+  },
+  overlay: {
     position: 'absolute',
+    height: titleBandHeight,
+  },
+  header: {
     height: titleBandHeight,
     flexDirection: 'row',
     alignItems: 'center',

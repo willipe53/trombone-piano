@@ -17,6 +17,15 @@ export type HelpBlock = { kind: 'heading'; icon: string; title: string } | { kin
 
 const headingPattern = /^## !\[[^\]]*\]\(([^)]+)\)\s*(.*)$/
 
+/// The paragraph that follows a help heading, such as Golf or Scale inventory.
+export function helpParagraph(markdown: string, title: string): string | null {
+  const blocks = parseHelp(markdown)
+  const index = blocks.findIndex((block) => block.kind === 'heading' && block.title === title)
+  if (index < 0) return null
+  const next = blocks[index + 1]
+  return next?.kind === 'paragraph' ? next.text : null
+}
+
 export function parseHelp(markdown: string): HelpBlock[] {
   const blocks: HelpBlock[] = []
   for (const chunk of markdown.split(/\n\n+/)) {
