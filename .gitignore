@@ -19,12 +19,6 @@ xcuserdata/
 
 scratch.txt
 
-# Local trombone notes and reference files. Not part of the public app repo.
-sheet music/
-media/
-docs/
-counterweight/
-
 # React Native
 node_modules/
 
@@ -69,13 +63,3 @@ yarn-error.*
 
 # CanvasKit binary for the web keybed. npm run web copies it into public/.
 /public/canvaskit.wasm
-
-images/16ltm_couch.png
-images/alessi1.png
-images/alessi2.png
-images/alessi3.png
-images/alessi_trigger.png
-images/etching.png
-images/etching2.png
-images/mute_stand.png
-images/old_trombone.png

@@ -74,16 +74,10 @@ This directory is the UIKit app. `TrombonePiano/` is the app target. `TrombonePi
 
 The React Native app is the repository root. See [../README.md](../README.md).
 
-`../images/` holds the app drawings and screenshots, including the GIMP files and `screenshot.png` described above. It also holds horn photos that are not part of the app: `16ltm_couch.png`, `alessi1.png`, `alessi2.png`, `alessi3.png`, `alessi_trigger.png`, `etching.png`, `etching2.png`, `mute_stand.png`, and `old_trombone.png`. Those photos stay on this machine and are not in the public repository.
+`../images/` holds the app drawings and screenshots, including the GIMP files and `screenshot.png` described above.
 
 `../app-store/` holds the store screenshots. `../website/` holds the privacy policy and the support page. Those pages are what `trombonepiano.com` serves.
 
 `../games/` holds notes for clef and scale games in `../games/PREMISE.md`. It is not a shipped target.
-
-`../docs/` holds the kit, mouthpiece, practice, player, and horn notes moved from the old trombone repository: `BESSON_HORN.md`, `LARGE_BORE_KIT.md`, `MOUTHPIECES.md`, `NEUMANNS_ALESSI.md`, `PLAYERS.md`, `PRACTICE_LOG.md`, `REBUILD_PLAN.md`, and `SMALL_BORE_KIT.md`. This folder stays on this machine and is not in the public repository.
-
-`../counterweight/` holds the Bach 16M-LT counterweight drawings and `ITERATIONS.md`. It stays on this machine and is not in the public repository.
-
-`../sheet music/` and `../media/` are local reference copies. They are not part of the app and are not in the public repository.
 
 `../buildServer.json` is the SweetPad build server. `../LICENSE` is the MIT license.
