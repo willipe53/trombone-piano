@@ -9,6 +9,7 @@ import { GolfDeal, GolfLevel, type GolfLevel as GolfLevelValue } from './golfDea
 import { GolfBoard } from './GolfBoard'
 import { readInstrumentSettings } from './instrumentSettings'
 import { helpParagraph } from './noticeText'
+import { phoneModalOrientations } from './orientation'
 import { KeySignature } from './scoreNotation'
 import { ScaleBoard } from './ScaleBoard'
 import { ScaleInventoryDeal, ScaleLevel, type ScaleLevel as ScaleLevelValue } from './scaleInventory'
@@ -269,7 +270,13 @@ function GameDealHeader({
 
 function GameHelp({ visible, text, onDismiss }: { visible: boolean; text: string; onDismiss: () => void }) {
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onDismiss}
+      supportedOrientations={phoneModalOrientations()}
+    >
       <View style={styles.shade}>
         <View style={styles.card}>
           <ScrollView style={styles.helpScroll}>

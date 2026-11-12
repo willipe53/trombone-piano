@@ -1,6 +1,6 @@
 # Play Console
 
-Trombone Piano is a new app on the existing Extent Devices developer account, not an update of Ditch. Do not create the Play listing until the games are ready and an AAB exists.
+Trombone Piano is a new app on the existing Extent Devices developer account, not an update of Ditch. The app opens on the keyboard and toggles to the drone. Do not create the Play listing until an AAB exists.
 
 Confirm the developer account is an organization account. The 12-tester / 14-day closed test applies to personal accounts created after 13 November 2023. Organization accounts are exempt. If the account is still a personal account, budget for that test before production.
 

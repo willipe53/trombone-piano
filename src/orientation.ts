@@ -18,6 +18,12 @@ export async function lockPianoOrientation(): Promise<void> {
   await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE)
 }
 
+/// Phone modals must name landscape. The default is portrait, which does not match a landscape-locked phone.
+export function phoneModalOrientations(): Array<'landscape' | 'landscape-left' | 'landscape-right'> | undefined {
+  if (!isPhone()) return undefined
+  return ['landscape', 'landscape-left', 'landscape-right']
+}
+
 export async function unlockOrientation(): Promise<void> {
   if (Platform.OS === 'web') return
   await ScreenOrientation.unlockAsync()

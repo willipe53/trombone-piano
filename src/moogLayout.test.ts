@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ipadProPointsPerMillimeter, whiteKeyHeightMm } from './geometry'
-import { MoogLayout } from './moogLayout'
+import { keyboardBlockHeight, laneForStrip, MoogLayout, scaleForKeyboardBlock, woodHeightForBand } from './moogLayout'
 
 describe('moog layout', () => {
   it('makes the rosewood bar one third of the keys when the panel still fits', () => {
@@ -26,6 +26,28 @@ describe('moog layout', () => {
     const layout = MoogLayout.layout(viewport, keyHeight)
     expect(layout.panelHeight).toBeGreaterThanOrEqual(MoogLayout.minPanelHeight - 0.01)
     expect(Math.abs(layout.woodHeight - MoogLayout.minWoodHeight)).toBeLessThanOrEqual(0.01)
+  })
+
+  it('keeps the rosewood bar one third of the keys inside the keyboard band', () => {
+    const band = 293.333
+    const horn = (200 / 3) * MoogLayout.barHeightFactor
+    const wood = woodHeightForBand(band)
+    expect(wood).toBeCloseTo(horn + MoogLayout.positionLane, 2)
+    expect(band - wood).toBeCloseTo(200 - MoogLayout.positionLane, 2)
+    expect(laneForStrip(wood)).toBe(MoogLayout.positionLane)
+    expect(laneForStrip(woodHeightForBand(48))).toBe(0)
+    expect(woodHeightForBand(48)).toBeLessThan(48)
+    expect(woodHeightForBand(0)).toBe(0)
+  })
+
+  it('follows a vertical drag of the keyboard block', () => {
+    const keyHeightForScale = (scale: number) => scale * 400
+    const block = keyboardBlockHeight(1000, keyHeightForScale(0.5))
+    expect(scaleForKeyboardBlock(1000, block, 0.2, 1, keyHeightForScale)).toBeCloseTo(0.5, 3)
+    expect(scaleForKeyboardBlock(1000, block - 80, 0.2, 1, keyHeightForScale)).toBeLessThan(0.5)
+    expect(scaleForKeyboardBlock(1000, block + 80, 0.2, 1, keyHeightForScale)).toBeGreaterThan(0.5)
+    expect(scaleForKeyboardBlock(1000, 10, 0.2, 1, keyHeightForScale)).toBeCloseTo(0.2)
+    expect(scaleForKeyboardBlock(1000, 5000, 0.2, 1, keyHeightForScale)).toBeCloseTo(1)
   })
 
   it('still fits full-size keys in an 11-inch landscape', () => {

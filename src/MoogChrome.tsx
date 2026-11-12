@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Platform, Pressable, StyleSheet, View } from 'react-native'
-import { Canvas, Circle, Group, Line, LinearGradient, Path, RadialGradient, Rect, Skia, vec } from '@shopify/react-native-skia'
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Canvas, Circle, Group, Line, LinearGradient, Path, RadialGradient, Rect, Skia, vec, FillType } from '@shopify/react-native-skia'
 import { hatchPath, type KeyHatch } from './keyHatch'
 import { companionWidth } from './panelMeasure'
 import type { MidiAppearance } from 'trombone-midi'
@@ -150,21 +150,103 @@ export function BluetoothRune({ appearance, onPress }: { appearance: MidiAppeara
   )
 }
 
+export function SettingsBall({ onPress }: { onPress?: () => void }) {
+  return (
+    <Pressable
+      accessibilityLabel="Settings"
+      accessibilityRole="button"
+      onPress={onPress}
+      ref={(node) => {
+        if (Platform.OS !== 'web' || node == null || !('title' in node)) return
+        node.title = 'Settings'
+      }}
+      style={styles.ballHit}
+    >
+      <ChromeBall />
+      <View pointerEvents="none" style={styles.gearSlot}>
+        <GearGlyph />
+      </View>
+    </Pressable>
+  )
+}
+
+function GearGlyph() {
+  const path = useMemo(() => gearShape(gearBox), [])
+  return (
+    <Canvas style={{ width: gearBox, height: gearBox }} pointerEvents="none">
+      <Path path={path} color="#1A1A1A" style="fill" />
+    </Canvas>
+  )
+}
+
+function gearShape(size: number) {
+  const builder = Skia.PathBuilder.Make()
+  const center = size / 2
+  const teeth = 8
+  const outer = size * 0.46
+  const root = size * 0.28
+  const step = (Math.PI * 2) / teeth
+  const flank = step * 0.16
+  for (let tooth = 0; tooth < teeth; tooth += 1) {
+    const start = tooth * step - Math.PI / 2
+    const points = [
+      point(center, start + flank, root),
+      point(center, start + step * 0.28, outer),
+      point(center, start + step * 0.72, outer),
+      point(center, start + step - flank, root),
+    ]
+    if (tooth === 0) builder.moveTo(points[0].x, points[0].y)
+    else builder.lineTo(points[0].x, points[0].y)
+    builder.lineTo(points[1].x, points[1].y)
+    builder.lineTo(points[2].x, points[2].y)
+    builder.lineTo(points[3].x, points[3].y)
+  }
+  builder.close()
+  builder.addCircle(center, center, size * 0.15, true)
+  builder.setFillType(FillType.EvenOdd)
+  return builder.build()
+}
+
+function point(center: number, angle: number, radius: number) {
+  return { x: center + Math.cos(angle) * radius, y: center + Math.sin(angle) * radius }
+}
+
+const gearBox = 20
+
+function ChromeBall() {
+  const size = 30
+  if (Platform.OS === 'web') return <View style={styles.webBall} />
+  return (
+    <Canvas style={{ width: size, height: size }} pointerEvents="none">
+      <Circle cx={size / 2} cy={size / 2} r={size / 2}>
+        <RadialGradient c={vec(11, 9)} r={18} colors={['#FFFFFF', '#D0D0D0', '#7A7A7A']} />
+      </Circle>
+    </Canvas>
+  )
+}
+
+export function HelpBall({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable accessibilityLabel="Help" onPress={onPress} style={styles.ballHit}>
+      <ChromeBall />
+      <Text style={styles.helpMark}>?</Text>
+    </Pressable>
+  )
+}
+
 export function CloseBall({ onPress }: { onPress: () => void }) {
   const size = 30
   const inset = 9.5
   return (
     <Pressable accessibilityLabel="Close" onPress={onPress} style={styles.ballHit}>
+      <ChromeBall />
       {Platform.OS === 'web' ? (
-        <View style={styles.webBall}>
+        <View pointerEvents="none" style={styles.webMark}>
           <View style={[styles.webArm, styles.webArmDown]} />
           <View style={[styles.webArm, styles.webArmUp]} />
         </View>
       ) : (
-        <Canvas style={{ width: size, height: size }}>
-          <Circle cx={size / 2} cy={size / 2} r={size / 2}>
-            <RadialGradient c={vec(11, 9)} r={18} colors={['#FFFFFF', '#D0D0D0', '#7A7A7A']} />
-          </Circle>
+        <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
           <Line
             p1={vec(inset, inset)}
             p2={vec(size - inset, size - inset)}
@@ -189,6 +271,32 @@ const styles = StyleSheet.create({
   fader: { height: 36, justifyContent: 'center' },
   wellHit: { width: wellSize, height: wellSize },
   ballHit: { width: 30, height: 30, zIndex: 1 },
+  gearSlot: {
+    position: 'absolute',
+    left: (30 - gearBox) / 2,
+    top: (30 - gearBox) / 2,
+  },
+  webMark: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helpMark: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 1,
+    height: 28,
+    lineHeight: 28,
+    textAlign: 'center',
+    color: '#1A1A1A',
+    fontSize: 18,
+    fontWeight: '500',
+  },
   webBall: {
     width: 30,
     height: 30,

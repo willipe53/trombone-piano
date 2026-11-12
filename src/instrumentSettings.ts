@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from 'react'
 import { KeySignature, type KeyboardInstrument, type TromboneHornName } from './scoreNotation'
 import { keyScaleMax } from './geometry'
 import { type KeyHatch } from './keyHatch'
@@ -54,10 +55,39 @@ export function readInstrumentSettings(): InstrumentSettings {
   }
 }
 
+let snapshot: InstrumentSettings | null = null
+const listeners = new Set<() => void>()
+
+export function instrumentSettingsSnapshot(): InstrumentSettings {
+  if (!snapshot) snapshot = readInstrumentSettings()
+  return snapshot
+}
+
+export function subscribeInstrumentSettings(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
+export function useInstrumentSettings(): InstrumentSettings {
+  return useSyncExternalStore(subscribeInstrumentSettings, instrumentSettingsSnapshot, instrumentSettingsSnapshot)
+}
+
 export function writeInstrumentSettings(settings: InstrumentSettings): void {
+  const changed = snapshot !== settings
+  snapshot = settings
   try {
     writeStoredSettings(JSON.stringify(settings))
   } catch {
     // The screen still runs if storage is unavailable.
   }
+  if (!changed) return
+  for (const listener of [...listeners]) listener()
+}
+
+export function patchInstrumentSettings(partial: Partial<InstrumentSettings>): InstrumentSettings {
+  const next = { ...instrumentSettingsSnapshot(), ...partial }
+  writeInstrumentSettings(next)
+  return next
 }

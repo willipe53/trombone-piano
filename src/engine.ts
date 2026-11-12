@@ -1,5 +1,6 @@
 import { AudioContext } from 'react-native-audio-api'
 import type { AudioBuffer, AudioBufferSourceNode, GainNode } from 'react-native-audio-api'
+import { droneNoteGain, renderDroneLoop, type DroneVoice } from './drone'
 import { sampleModules } from './sampleManifest'
 import { scheduledSources } from './playback'
 import {
@@ -30,6 +31,8 @@ type Voice = {
   age: number
   fading: boolean
   token: number
+  baseLevel: number
+  swell: boolean
 }
 
 export class Engine {
@@ -41,6 +44,8 @@ export class Engine {
   private readonly loaded = new Set<Instrument>()
   private readonly loading = new Map<Instrument, Promise<void>>()
   private readonly fallbacks = new Map<Instrument, number>()
+  private readonly generated = new Map<string, AudioBuffer>()
+  private swellTimer: ReturnType<typeof setInterval> | null = null
   instrument: Instrument = 'piano'
 
   isLoaded(instrument: Instrument): boolean {
@@ -82,6 +87,27 @@ export class Engine {
     for (const note of changes.started) this.play(note)
   }
 
+  /// Holds a drone chord. Trombone uses the sampled sustain. Reed and tone use generated loops.
+  setDrone(notes: ReadonlySet<number>, voice: DroneVoice, volume: number): void {
+    if (voice === 'trombone' && !this.loaded.has('trombone')) return
+    const level = Math.max(0, Math.min(1, volume)) * droneNoteGain
+    const context = this.audio()
+    this.installVoices(context)
+    const changes = noteChanges(this.sounding, notes)
+    this.sounding = new Set(notes)
+    for (const note of changes.stopped) this.release(note)
+    for (const note of changes.started) this.playDrone(note, voice, level)
+    for (const note of notes) {
+      if (changes.started.includes(note)) continue
+      const slot = this.voices.find((candidate) => candidate.note === note)
+      if (!slot) continue
+      slot.baseLevel = level
+      slot.swell = voice === 'reed'
+      if (voice !== 'reed') slot.gain.gain.setValueAtTime(level, context.currentTime)
+    }
+    this.ensureSwell()
+  }
+
   /// Trombone attack once, with no sustain source, stopped after 0.9s.
   playOneShot(midi: number): void {
     this.playPrepared(midi, 'trombone', 'oneShot')
@@ -100,6 +126,7 @@ export class Engine {
       }
     }
     this.sounding.clear()
+    this.stopSwell()
   }
 
   private audio(): AudioContext {
@@ -113,7 +140,7 @@ export class Engine {
       const gain = context.createGain()
       gain.gain.value = gainLevel
       gain.connect(context.destination)
-      this.voices.push({ gain, sources: [], note: null, age: 0, fading: false, token: 0 })
+      this.voices.push({ gain, sources: [], note: null, age: 0, fading: false, token: 0, baseLevel: gainLevel, swell: false })
     }
   }
 
@@ -179,6 +206,40 @@ export class Engine {
     this.playPrepared(note, this.instrument, 'held')
   }
 
+  private playDrone(note: number, voice: DroneVoice, level: number): void {
+    const context = this.context
+    if (!context) return
+    this.installVoices(context)
+    const slot = this.takeVoice(note)
+    const now = context.currentTime
+    slot.baseLevel = level
+    slot.swell = voice === 'reed'
+    slot.gain.gain.cancelScheduledValues(now)
+    slot.gain.gain.setValueAtTime(0, now)
+    slot.gain.gain.linearRampToValueAtTime(level, now + 0.05)
+    if (voice === 'trombone') {
+      this.startHeld(slot, 'trombone', note, now)
+      return
+    }
+    const buffer = this.droneBuffer(context, voice, note)
+    const source = context.createBufferSource()
+    source.buffer = buffer
+    source.loop = true
+    source.connect(slot.gain)
+    source.start(now)
+    slot.sources = [source]
+  }
+
+  private droneBuffer(context: AudioContext, voice: 'reed' | 'tone', note: number): AudioBuffer {
+    const key = `${voice}:${note}`
+    const cached = this.generated.get(key)
+    if (cached) return cached
+    const samples = renderDroneLoop(voice, note, context.sampleRate)
+    const buffer = pcmBuffer(context, samples, context.sampleRate)
+    this.generated.set(key, buffer)
+    return buffer
+  }
+
   private playPrepared(note: number, instrument: Instrument, kind: 'held' | 'oneShot'): void {
     const context = this.context
     const prepared = this.cache.get(cacheKey(instrument, note))
@@ -186,8 +247,24 @@ export class Engine {
     this.installVoices(context)
     const voice = this.takeVoice(note)
     const now = context.currentTime
+    voice.baseLevel = gainLevel
+    voice.swell = false
     voice.gain.gain.cancelScheduledValues(now)
     voice.gain.gain.setValueAtTime(gainLevel, now)
+    this.startHeld(voice, instrument, note, now, kind)
+    if (kind !== 'oneShot') return
+    const token = voice.token
+    setTimeout(() => {
+      if (voice.token !== token) return
+      voice.note = null
+      this.stopSource(voice)
+    }, 900)
+  }
+
+  private startHeld(voice: Voice, instrument: Instrument, note: number, now: number, kind: 'held' | 'oneShot' = 'held'): void {
+    const context = this.context
+    const prepared = this.cache.get(cacheKey(instrument, note))
+    if (!context || !prepared) return
     const parts = scheduledSources(kind, prepared.sustain !== null)
     const attack = context.createBufferSource()
     attack.buffer = prepared.attack
@@ -203,13 +280,6 @@ export class Engine {
       sustain.start(now + prepared.attack.duration)
       voice.sources.push(sustain)
     }
-    if (kind !== 'oneShot') return
-    const token = voice.token
-    setTimeout(() => {
-      if (voice.token !== token) return
-      voice.note = null
-      this.stopSource(voice)
-    }, 900)
   }
 
   private release(note: number): void {
@@ -218,9 +288,11 @@ export class Engine {
     if (!context || !voice || voice.sources.length === 0) return
     const sources = voice.sources
     const now = context.currentTime
+    const level = voice.gain.gain.value
     voice.gain.gain.cancelScheduledValues(now)
-    voice.gain.gain.setValueAtTime(gainLevel, now)
+    voice.gain.gain.setValueAtTime(level, now)
     voice.gain.gain.linearRampToValueAtTime(0, now + releaseSeconds)
+    voice.swell = false
     voice.note = null
     voice.fading = true
     const token = voice.token
@@ -230,6 +302,7 @@ export class Engine {
       for (const source of sources) stopSourceNode(source)
       if (voice.sources === sources) voice.sources = []
     }, releaseSeconds * 1000 + 20)
+    this.ensureSwell()
   }
 
   private takeVoice(note: number): Voice {
@@ -249,10 +322,41 @@ export class Engine {
     voice.token += 1
     this.stopSource(voice)
     voice.fading = false
+    voice.swell = false
     voice.note = note
     this.age += 1
     voice.age = this.age
     return voice
+  }
+
+  private ensureSwell(): void {
+    const needs = this.voices.some((voice) => voice.swell && voice.note !== null)
+    if (!needs) {
+      this.stopSwell()
+      return
+    }
+    if (this.swellTimer) return
+    this.swellTimer = setInterval(() => this.pumpSwell(), 80)
+  }
+
+  private stopSwell(): void {
+    if (!this.swellTimer) return
+    clearInterval(this.swellTimer)
+    this.swellTimer = null
+  }
+
+  private pumpSwell(): void {
+    const context = this.context
+    if (!context) return
+    const period = 5
+    const phase = (context.currentTime % period) / period
+    const amount = 0.5 - 0.5 * Math.cos(2 * Math.PI * phase)
+    const now = context.currentTime
+    for (const voice of this.voices) {
+      if (!voice.swell || voice.note === null) continue
+      const level = voice.baseLevel * (0.82 + 0.18 * amount)
+      voice.gain.gain.setValueAtTime(level, now)
+    }
   }
 
   private stopSource(voice: Voice): void {

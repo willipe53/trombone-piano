@@ -21,6 +21,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~58.0.4",
     "typescript": "~6.0.3",
     "vitest": "^5.0.5"
   },
@@ -34,7 +36,8 @@
     "android-build": "eas build --platform android --profile production",
     "test": "vitest run",
     "decode": "node scripts/decode-samples.mjs && node scripts/write-sample-manifest.mjs",
-    "manifest": "node scripts/write-sample-manifest.mjs"
+    "manifest": "node scripts/write-sample-manifest.mjs",
+    "lint": "expo lint"
   },
   "private": true
 }

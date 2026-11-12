@@ -12,11 +12,9 @@ import { ScaleInventoryDeal, ScaleLevel } from './scaleInventory'
 const sharpSecond = { number: 2, short: true }
 const help = readFileSync(new URL('../swift_version/TrombonePiano/Help.md', import.meta.url), 'utf8')
 
-describe('game help', () => {
-  it('uses the Golf and Scale inventory paragraphs from the help text', () => {
-    expect(helpParagraph(help, 'Golf')).toMatch(/^Golf, bass and Golf, tenor/)
-    expect(helpParagraph(help, 'Scale inventory')).toMatch(/^One octave of a named major key/)
-    expect(helpParagraph(help, 'Keyboard')).not.toMatch(/Golf, bass/)
+describe('help paragraphs', () => {
+  it('returns null when the heading is missing', () => {
+    expect(helpParagraph('## ![x](info) Other\n\nBody\n', 'Missing')).toBeNull()
     expect(helpParagraph(help, 'Missing')).toBeNull()
   })
 })

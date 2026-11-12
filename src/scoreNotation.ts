@@ -83,11 +83,9 @@ export function noteIsInKey(midi: number, key: KeySignature): boolean {
   return pitchClasses(key).has(midi % 12)
 }
 
-/// First-position harmonics of a straight tenor trombone that sit within 15 cents of equal temperament.
-/// The flat 7th partial is left out, so Ab4 is not position 1.
-function inTuneTrombonePartials(): Set<number> {
+/// Harmonics within 15 cents of equal temperament. The flat 7th partial is left out, so Ab4 is not position 1 on Bb.
+function inTunePartialsFor(fundamental: number): Set<number> {
   const notes = new Set<number>()
-  const fundamental = 34
   for (let partial = 1; partial <= 64; partial += 1) {
     const cents = 1200 * Math.log2(partial)
     const semitones = Math.round(cents / 100)
@@ -96,7 +94,8 @@ function inTuneTrombonePartials(): Set<number> {
   return notes
 }
 
-const inTunePartials = inTuneTrombonePartials()
+const bbPartials = inTunePartialsFor(34)
+const fPartials = inTunePartialsFor(29)
 
 export type TromboneHornName = 'straight' | 'trigger'
 
@@ -107,6 +106,9 @@ export type TromboneHorn = {
   slideTravel: readonly number[]
   slideSlope: number
   maxTravel: number
+  /// Underside of the outer-slide tubes at the brace, in canvas pixels.
+  braceX: number
+  braceY: number
 }
 
 /// The straight drawing, full width. First position is the resting drawing.
@@ -126,6 +128,8 @@ export const TromboneHorn = {
     slideTravel: straightSlideTravel,
     slideSlope: tromboneSlideSlope,
     maxTravel: Number.POSITIVE_INFINITY,
+    braceX: 618,
+    braceY: 319,
   },
   trigger: {
     name: 'trigger',
@@ -134,6 +138,8 @@ export const TromboneHorn = {
     slideTravel: triggerSlideTravel,
     slideSlope: 8 / 709,
     maxTravel: 710,
+    braceX: 625,
+    braceY: 323,
   },
 } satisfies Record<TromboneHornName, TromboneHorn>
 
@@ -144,14 +150,14 @@ export type SlideSetting = {
   /// Canvas pixels from first position.
   travel: number
   trigger: boolean
-  /// "1"…"7" on the Bb slide, "T3"…"T7" with the trigger.
+  /// "1"…"7" on the Bb slide, "T2.5" and the other half steps with the trigger.
   label: string
 }
 
 /// Shortest slide position, 1 through 7, for a straight tenor trombone. Nil when the note needs an F attachment or sits past the slide.
 export function trombonePosition(midi: number): number | null {
   for (let position = 1; position <= 7; position += 1) {
-    if (inTunePartials.has(midi + position - 1)) return position
+    if (bbPartials.has(midi + position - 1)) return position
   }
   return null
 }
@@ -161,31 +167,73 @@ export function tromboneNeedsFAttachment(midi: number): boolean {
   return midi >= 35 && midi <= 39
 }
 
-/// E♭2 is 3rd, then one position longer per semitone down to B1 at 7th.
-function triggerAttachmentPosition(midi: number): number | null {
-  if (!tromboneNeedsFAttachment(midi)) return null
-  return 3 + (39 - midi)
+/// Where an F-horn position sits on the normal slide. The longer tube stretches each semitone, so 2nd is T2.5.
+function triggerPlace(position: number): { travel: number; label: string } | null {
+  const steps = 1 + (position - 1) * triggerLengthRatio
+  const half = Math.round(steps * 2) / 2
+  if (half < 1 || half > 7.5) return null
+  const text = Number.isInteger(half) ? String(half) : half.toFixed(1)
+  return { travel: triggerSlideTravelAt(half), label: `T${text}` }
 }
 
-function triggerAttachmentTravel(position: number): number {
-  const raw = Math.round(triggerSlideTravel[position - 1] * triggerLengthRatio)
-  return Math.min(raw, TromboneHorn.trigger.maxTravel)
+function triggerSlideTravelAt(position: number): number {
+  const travels = triggerSlideTravel
+  if (position <= 1) return 0
+  if (position >= travels.length) {
+    const gap = travels[travels.length - 1] - travels[travels.length - 2]
+    const raw = travels[travels.length - 1] + (position - travels.length) * gap
+    return Math.min(Math.round(raw), TromboneHorn.trigger.maxTravel)
+  }
+  const lower = Math.floor(position)
+  const start = travels[lower - 1]
+  const end = travels[lower]
+  return Math.round(start + (end - start) * (position - lower))
 }
 
-export function tromboneSlide(midi: number, horn: TromboneHorn): SlideSetting | null {
-  const position = trombonePosition(midi)
-  if (position !== null) {
-    return {
+/// The 7th partial is about 31 cents flat, so the slide only travels this far toward the next numbered stop.
+const seventhShortFraction = (100 + (1200 * Math.log2(7) - Math.round((1200 * Math.log2(7)) / 100) * 100)) / 100
+
+/// G4 is MIDI 67. Short 2nd, then one semitone and one position number per stop, through D4 at short 7th.
+/// Ab4 would be short 1st, and the slide is already in, so that one is not a stop.
+export function shortSeventhPosition(midi: number): number | null {
+  const number = 2 + (67 - midi)
+  if (number < 2 || number > 7) return null
+  return number
+}
+
+function shortSeventhTravel(horn: TromboneHorn, position: number): number {
+  const inner = horn.slideTravel[position - 2]
+  const outer = horn.slideTravel[position - 1]
+  return Math.min(Math.round(inner + (outer - inner) * seventhShortFraction), horn.maxTravel)
+}
+
+/// Every in-tune position for the note, plus the short 7th-partial stop. Straight positions come first, then trigger positions on that horn.
+export function tromboneSlides(midi: number, horn: TromboneHorn): SlideSetting[] {
+  const slides: SlideSetting[] = []
+  const short = shortSeventhPosition(midi)
+  for (let position = 1; position <= 7; position += 1) {
+    if (short === position) {
+      slides.push({ travel: shortSeventhTravel(horn, position), trigger: false, label: `#${position}` })
+    }
+    if (!bbPartials.has(midi + position - 1)) continue
+    slides.push({
       travel: Math.min(horn.slideTravel[position - 1], horn.maxTravel),
       trigger: false,
       label: `${position}`,
-    }
+    })
   }
-  const attachment = triggerAttachmentPosition(midi)
-  if (horn.name === 'trigger' && attachment !== null) {
-    return { travel: triggerAttachmentTravel(attachment), trigger: true, label: `T${attachment}` }
+  if (horn.name !== 'trigger') return slides
+  for (let position = 1; position <= 7; position += 1) {
+    if (!fPartials.has(midi + position - 1)) continue
+    const place = triggerPlace(position)
+    if (!place || slides.some((slide) => slide.label === place.label)) continue
+    slides.push({ travel: place.travel, trigger: true, label: place.label })
   }
-  return null
+  return slides
+}
+
+export function tromboneSlide(midi: number, horn: TromboneHorn): SlideSetting | null {
+  return tromboneSlides(midi, horn)[0] ?? null
 }
 
 export function trombonePositionLabel(midi: number, horn: TromboneHorn): string | null {
@@ -220,6 +268,45 @@ export function tromboneOuterDrop(horizontal: number): number {
 
 export function tromboneOuterDropForHorn(horizontal: number, horn: TromboneHorn): number {
   return horizontal * horn.slideSlope
+}
+
+/// Both horn drawings are 334 pixels tall.
+export const tromboneCanvasHeight = 334
+
+/// Pointer under the brace for one slide travel. x includes the outer-slide shift. tip is the underside of the tube.
+export function slidePointer(
+  horn: TromboneHorn,
+  travel: number,
+  frame: { x: number; y: number; width: number; height: number },
+): { x: number; tip: number } {
+  const shift = tromboneOuterShiftForTravel(travel, frame.width, horn)
+  return {
+    x: frame.x + (horn.braceX * frame.width) / horn.canvasWidth + shift,
+    tip: frame.y + (horn.braceY * frame.height) / tromboneCanvasHeight + tromboneOuterDropForHorn(shift, horn),
+  }
+}
+
+/// One baseline. A pair that would overlap shifts apart, the left label left and the right label right. Pointer x stays put.
+export function slideLabelOffsets(marks: readonly { x: number }[], widths: readonly number[], gap: number): number[] {
+  const offsets = marks.map(() => 0)
+  const leftOf = (index: number) => marks[index].x + offsets[index] - (widths[index] ?? 0) / 2
+  const rightOf = (index: number) => marks[index].x + offsets[index] + (widths[index] ?? 0) / 2
+  const order = marks.map((_, index) => index).sort((a, b) => marks[a].x - marks[b].x || a - b)
+  for (let pass = 0; pass < order.length; pass += 1) {
+    let moved = false
+    for (let index = 1; index < order.length; index += 1) {
+      const previous = order[index - 1]
+      const current = order[index]
+      const deficit = rightOf(previous) + gap - leftOf(current)
+      if (deficit <= 0) continue
+      const shift = deficit / 2
+      offsets[previous] -= shift
+      offsets[current] += shift
+      moved = true
+    }
+    if (!moved) break
+  }
+  return offsets
 }
 
 export type SignatureMark = {
@@ -301,9 +388,28 @@ export type ScoreColumn = {
   notes: ScoreEvent[]
 }
 
+/// The newest columns that fit in `capacity`, packed so the latest sits in the last slot.
+export function visibleScoreColumns<T>(columns: readonly T[], capacity: number): { columns: readonly T[]; pad: number } {
+  const count = Math.max(0, Math.floor(Number.isFinite(capacity) ? capacity : 0))
+  if (count === 0 || columns.length <= count) {
+    const pad = count === 0 ? 0 : count - columns.length
+    return { columns, pad }
+  }
+  return { columns: columns.slice(-count), pad: 0 }
+}
+
 export class ScoreHistory {
+  /// Used for the usual note spacing. Retention is separate, so a wide pane can remember more than fit at one time.
   static readonly columnLimit = 10
+  static readonly keptColumns = 30
   columns: ScoreColumn[] = []
+  /// Columns kept in memory. At least `keptColumns`, and more if the pane itself fits more. Narrowing does not lower it.
+  private keptLimit = ScoreHistory.keptColumns
+
+  hold(count: number): void {
+    const next = Math.max(1, Math.floor(Number.isFinite(count) ? count : 1))
+    this.keptLimit = Math.max(this.keptLimit, next)
+  }
 
   /// How many columns were dropped from the left.
   apply(started: readonly number[], stopped: readonly number[]): number {
@@ -319,7 +425,11 @@ export class ScoreHistory {
     }
     if (started.length === 0) return 0
     this.columns.push({ notes: started.map((midi) => ({ midi, sounding: true })) })
-    const overflow = Math.max(0, this.columns.length - ScoreHistory.columnLimit)
+    return this.dropOverflow()
+  }
+
+  private dropOverflow(): number {
+    const overflow = Math.max(0, this.columns.length - this.keptLimit)
     if (overflow > 0) this.columns.splice(0, overflow)
     return overflow
   }

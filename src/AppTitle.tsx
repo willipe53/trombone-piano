@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Asset } from 'expo-asset'
 import { Canvas, Group, Path, Skia } from '@shopify/react-native-skia'
 import { Platform, StyleSheet, View } from 'react-native'
-import { CloseBall } from './MoogChrome'
+import { CloseBall, HelpBall } from './MoogChrome'
 import { fittedTitleSize, titleBallSize, titleBandHeight, titleGap, titleMarkSize, titleText } from './panelMeasure'
 
 const titleMark = require('../assets/trombone-piano-title.svg')
@@ -69,20 +69,29 @@ function FilledPath({ data }: { data: string }) {
   return <Path path={path} color="#FFFFFF" style="fill" />
 }
 
-export function AppTitle({ width, onClose }: { width: number; onClose: () => void }) {
-  const available = Math.max(0, width - titleBallSize - titleGap)
+export function AppTitle({
+  width,
+  onClose,
+  onHelp,
+}: {
+  width: number
+  onClose?: () => void
+  onHelp?: () => void
+}) {
+  const ball = Boolean(onClose || onHelp)
+  const available = Math.max(0, width - (ball ? titleBallSize + titleGap : 0))
   const size = useMemo(
     () => fittedTitleSize(available, (fontSize) => titleMarkSize(fontSize).width),
     [available],
   )
   const mark = titleMarkSize(size)
   return (
-    <View accessibilityLabel={titleText} style={[styles.row, { width }]}>
-      <View style={[styles.markSlot, { width: available }]}>
+    <View style={[styles.row, { width }]}>
+      <View accessibilityLabel={titleText} style={[styles.markSlot, { width: available }]}>
         <Wordmark width={mark.width} height={mark.height} />
       </View>
-      <View style={{ width: titleGap }} />
-      <CloseBall onPress={onClose} />
+      {ball ? <View style={{ width: titleGap }} /> : null}
+      {onClose ? <CloseBall onPress={onClose} /> : onHelp ? <HelpBall onPress={onHelp} /> : null}
     </View>
   )
 }

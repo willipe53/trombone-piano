@@ -19,11 +19,15 @@ export function useHeaderLeading(node: ReactNode, active: boolean): void {
 
 export function AppFrame({
   onClose,
+  onHelp,
+  showHeader = false,
   insetContent,
   background,
   children,
 }: {
   onClose?: () => void
+  onHelp?: () => void
+  showHeader?: boolean
   insetContent: boolean
   background: string
   children: ReactNode
@@ -37,7 +41,7 @@ export function AppFrame({
   }, [])
   const room = Math.max(0, headerWidth - (leading ? leadingWidth + 8 : 0))
   const block = titleBlockWidth(room)
-  const header = onClose ? (
+  const header = showHeader || onClose ? (
     <View
       pointerEvents="box-none"
       onLayout={(event) => setHeaderWidth(event.nativeEvent.layout.width)}
@@ -54,7 +58,7 @@ export function AppFrame({
           </View>
         ) : null}
       </View>
-      <AppTitle width={block} onClose={onClose} />
+      <AppTitle width={block} onClose={onClose} onHelp={onHelp} />
     </View>
   ) : null
   return (

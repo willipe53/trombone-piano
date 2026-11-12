@@ -11,13 +11,13 @@ import {
   type GestureResponderEvent,
 } from 'react-native'
 import { KeySignatureSheet } from './KeySignatureGlyph'
-import { BluetoothRune, ColorWell, HatchWell, MoogFader } from './MoogChrome'
+import { phoneModalOrientations } from './orientation'
+import { BluetoothRune, ColorWell, HatchWell } from './MoogChrome'
 import { TPToggle } from './TPToggle'
 import { keySignatureGlyphWidth } from './keySignatureLayout'
 import { keyHatches, type KeyHatch } from './keyHatch'
 import {
   clampScoreMagnification,
-  clearButtonWidth,
   controlColumnWidth,
   controlContentWidth,
   controlInset,
@@ -25,26 +25,25 @@ import {
   controlRockerCount,
   paletteRing,
   paletteSwatches,
+  clampScoreColumn,
   scoreColumnInset,
   scoreIsAtDefaultView,
   headerClearance,
   splitPanel,
   storedPaletteColor,
 } from './panelMeasure'
+import { firstChordRight, noteColumnCapacity, noteColumnMetrics, staffContentWidth } from './scoreMeasure'
 import { ScoreStaff } from './ScoreStaff'
 import { KeySignature, type KeySignature as Signature, type KeyboardInstrument, type ScoreColumn, type TromboneHorn } from './scoreNotation'
 import type { MidiAppearance } from 'trombone-midi'
 
 const panel = '#1B1B1B'
 const label = '#F4F1EA'
-const staffContentWidth = 560
+const scoreHandleHit = 36
 
 export function MoogPanel({
   width,
   height,
-  scale,
-  minScale,
-  maxScale,
   showNotes,
   showKey,
   keepAlive,
@@ -64,7 +63,6 @@ export function MoogPanel({
   columns,
   shiftColumns,
   midiAppearance,
-  onScale,
   onShowNotes,
   onShowKey,
   onKeepAlive,
@@ -78,12 +76,11 @@ export function MoogPanel({
   onClearScore,
   onScoreView,
   onAdvertise,
+  onVisibleColumns,
+  controls,
 }: {
   width: number
   height: number
-  scale: number
-  minScale: number
-  maxScale: number
   showNotes: boolean
   showKey: boolean
   keepAlive: boolean
@@ -103,7 +100,6 @@ export function MoogPanel({
   columns: readonly ScoreColumn[]
   shiftColumns: number
   midiAppearance: MidiAppearance
-  onScale: (scale: number) => void
   onShowNotes: (show: boolean) => void
   onShowKey: (show: boolean) => void
   onKeepAlive: (enabled: boolean) => void
@@ -117,6 +113,8 @@ export function MoogPanel({
   onClearScore: () => void
   onScoreView: (magnification: number, x: number, y: number) => void
   onAdvertise: (wants: boolean) => void
+  onVisibleColumns: (count: number) => void
+  controls?: React.ReactNode
 }) {
   const [keysOpen, setKeysOpen] = useState(false)
   const [hatchOpen, setHatchOpen] = useState(false)
@@ -126,13 +124,25 @@ export function MoogPanel({
   const scrollRef = useRef<ScrollViewInstance>(null)
   const offsetRef = useRef({ x: scoreOffsetX, y: scoreOffsetY })
   const [liveOffset, setLiveOffset] = useState({ x: scoreOffsetX, y: scoreOffsetY })
+  const [scoreChoice, setScoreChoice] = useState<number | null>(null)
+  const [scoreDragging, setScoreDragging] = useState(false)
+  const splitDrag = useRef({ x: 0, score: 0, minimum: 0, panel: 0 })
   const blockWidth = controlContentWidth(controlRockerCount(Platform.OS !== 'web', showMidi))
   const split = splitPanel(width, controlColumnWidth(blockWidth))
-  const scoreViewport = Math.max(0, split.score - scoreColumnInset)
   const scoreHeight = Math.max(0, height - headerClearance())
-  const contentWidth = Math.max(scoreViewport, staffContentWidth) * scoreMagnification
+  const minScore = firstChordRight(staffContentWidth, scoreHeight, instrument, keySignature) + scoreColumnInset
+  const scoreWidth = clampScoreColumn(scoreChoice ?? split.score, minScore, width)
+  const leftWidth = Math.max(0, width - scoreWidth)
+  const scoreViewport = Math.max(0, scoreWidth - scoreColumnInset)
+  const columnFit = noteColumnMetrics(scoreHeight, instrument, keySignature)
+  const visibleColumns = noteColumnCapacity(scoreViewport, scoreHeight, instrument, keySignature)
+  const contentWidth = Math.max(scoreViewport, 1) * scoreMagnification
   const contentHeight = scoreHeight * scoreMagnification
   const showRecenter = !scoreIsAtDefaultView(scoreMagnification, liveOffset.x, liveOffset.y)
+
+  useEffect(() => {
+    onVisibleColumns(visibleColumns)
+  }, [onVisibleColumns, visibleColumns])
 
   useEffect(() => {
     const next = { x: scoreOffsetX, y: scoreOffsetY }
@@ -161,11 +171,11 @@ export function MoogPanel({
 
   return (
     <View style={[styles.panel, { width, height }]}>
-      <ScrollView style={[styles.controls, { width: split.controls }]} contentContainerStyle={styles.controlContent}>
-        <View style={[styles.sizeBlock, { width: blockWidth }]}>
-          <Text style={[styles.caption, styles.columnCaption]}>KEY SIZE</Text>
-          <MoogFader value={scale} minimum={minScale} maximum={maxScale} onChange={onScale} />
-        </View>
+      <ScrollView
+        style={[styles.controls, { width: leftWidth }]}
+        contentContainerStyle={controls ? styles.controlContentTop : styles.controlContent}
+      >
+        {controls ?? (
         <View style={[styles.bank, { width: blockWidth }]}>
           <View style={styles.row}>
             <TPToggle
@@ -214,13 +224,11 @@ export function MoogPanel({
                 <Text style={styles.keyChevron}>▾</Text>
               </Pressable>
             </View>
-            <Pressable accessibilityLabel="Clear score" onPress={onClearScore} style={styles.clearButton}>
-              <Text style={styles.keyText}>CLEAR SCORE</Text>
-            </Pressable>
           </View>
         </View>
+        )}
       </ScrollView>
-      <View style={[styles.scoreColumn, { width: split.score }]}>
+      <View style={[styles.scoreColumn, { width: scoreWidth }]}>
         <View style={{ height: headerClearance() }} />
         <View style={styles.scoreFrame}>
           <ScrollView
@@ -255,9 +263,15 @@ export function MoogPanel({
                 keySignature={keySignature}
                 columns={columns}
                 shiftColumns={shiftColumns}
+                visibleCount={visibleColumns}
+                columnSlot={columnFit.slot * scoreMagnification}
+                columnHead={columnFit.headWidth * scoreMagnification}
               />
             </View>
           </ScrollView>
+          <Pressable accessibilityLabel="Clear score" onPress={onClearScore} style={styles.clearButton}>
+            <Text style={styles.recenterText}>CLEAR</Text>
+          </Pressable>
           {showRecenter ? (
             <Pressable
               accessibilityLabel="Recenter"
@@ -267,6 +281,30 @@ export function MoogPanel({
               <Text style={styles.recenterText}>RECENTER</Text>
             </Pressable>
           ) : null}
+        </View>
+      </View>
+      <View
+        accessibilityLabel="Resize score"
+        accessibilityRole="adjustable"
+        onStartShouldSetResponder={() => true}
+        onMoveShouldSetResponder={() => true}
+        onResponderTerminationRequest={() => false}
+        onResponderGrant={(event) => {
+          splitDrag.current = { x: event.nativeEvent.pageX, score: scoreWidth, minimum: minScore, panel: width }
+          setScoreDragging(true)
+        }}
+        onResponderMove={(event) => {
+          const drag = splitDrag.current
+          const next = drag.score - (event.nativeEvent.pageX - drag.x)
+          setScoreChoice(clampScoreColumn(next, drag.minimum, drag.panel))
+        }}
+        onResponderRelease={() => setScoreDragging(false)}
+        onResponderTerminate={() => setScoreDragging(false)}
+        style={[styles.scoreHandle, { left: leftWidth - scoreHandleHit / 2, top: headerClearance() }]}
+      >
+        <View style={styles.scoreSeam} />
+        <View style={[styles.scoreGrip, scoreDragging && styles.scoreGripHeld]}>
+          <View style={styles.scoreGripLine} />
         </View>
       </View>
       <Picker
@@ -347,7 +385,7 @@ export function MoogPanel({
   )
 }
 
-function HatchChoice({ hatch, chosen, onPress }: { hatch: KeyHatch; chosen: boolean; onPress: () => void }) {
+export function HatchChoice({ hatch, chosen, onPress }: { hatch: KeyHatch; chosen: boolean; onPress: () => void }) {
   return (
     <Pressable accessibilityLabel={hatch} onPress={onPress} style={[styles.hatchChoice, chosen && styles.hatchChosen]}>
       <HatchWell hatch={hatch} onPress={onPress} />
@@ -355,10 +393,10 @@ function HatchChoice({ hatch, chosen, onPress }: { hatch: KeyHatch; chosen: bool
   )
 }
 
-const keyChoiceHeight = 54
-const keyGlyphHeight = 48
+export const keyChoiceHeight = 54
+export const keyGlyphHeight = 48
 
-function KeySignatureChoice({
+export function KeySignatureChoice({
   signature,
   chosen,
   onPress,
@@ -385,7 +423,7 @@ function KeySignatureChoice({
   )
 }
 
-function Picker({
+export function Picker({
   title,
   visible,
   onClose,
@@ -411,7 +449,13 @@ function Picker({
     return () => cancelAnimationFrame(frame)
   }, [visible, focusIndex, rowHeight, listHeight])
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      supportedOrientations={phoneModalOrientations()}
+    >
       <Pressable style={styles.modalShade} onPress={onClose}>
         <Pressable style={styles.modalCard} onPress={() => {}}>
           <Text style={styles.modalTitle}>{title}</Text>
@@ -438,6 +482,7 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     flexShrink: 0,
     alignSelf: 'stretch',
+    overflow: 'hidden',
   },
   controlContent: {
     paddingHorizontal: controlInset,
@@ -448,10 +493,11 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
   },
-  sizeBlock: {
-    alignSelf: 'flex-start',
-    gap: 8,
-    marginBottom: 4,
+  controlContentTop: {
+    paddingHorizontal: controlInset,
+    paddingTop: headerClearance() + 8,
+    paddingBottom: 16,
+    alignItems: 'flex-start',
   },
   bank: {
     alignSelf: 'flex-start',
@@ -461,12 +507,57 @@ const styles = StyleSheet.create({
     paddingRight: scoreColumnInset,
     flexGrow: 0,
     flexShrink: 0,
+    backgroundColor: panel,
+    zIndex: 1,
+  },
+  scoreHandle: {
+    position: 'absolute',
+    bottom: 0,
+    width: scoreHandleHit,
+    zIndex: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scoreSeam: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: '#4A4A4A',
+  },
+  scoreGrip: {
+    width: 18,
+    height: 46,
+    borderRadius: 2,
+    backgroundColor: '#C8C8C8',
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scoreGripHeld: {
+    backgroundColor: '#F4F4F4',
+  },
+  scoreGripLine: {
+    width: 1,
+    height: 28,
+    backgroundColor: '#1A1A1A',
   },
   scoreFrame: {
     flex: 1,
   },
   scoreScroll: {
     flex: 1,
+  },
+  clearButton: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+    backgroundColor: '#070707',
+    borderWidth: 1,
+    borderColor: '#6A6A6A',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   recenter: {
     position: 'absolute',
@@ -496,10 +587,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     letterSpacing: 1.2,
-  },
-  columnCaption: {
-    textAlign: 'center',
-    alignSelf: 'stretch',
   },
   row: {
     flexDirection: 'row',
@@ -614,16 +701,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  clearButton: {
-    width: clearButtonWidth,
-    height: 40,
-    borderRadius: 0,
-    backgroundColor: '#070707',
-    borderWidth: 1,
-    borderColor: '#6A6A6A',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   keyText: {
     color: '#FFFFFF',

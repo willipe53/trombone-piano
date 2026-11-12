@@ -129,7 +129,6 @@ export const columnGutter = 14
 export const columnPitch = Math.max(rockerWidth + companionGap + companionWidth, captionWidth) + columnGutter * 2
 export const controlGap = 16
 export const keyButtonWidth = 160
-export const clearButtonWidth = 132
 /// Padding on each side of the control column.
 export const controlInset = 22
 /// Right inset inside the score column. The header uses the same inset.
@@ -140,11 +139,9 @@ export function rowWidth(count: number, itemWidth = rockerWidth, gap = controlGa
   return count * itemWidth + Math.max(0, count - 1) * gap
 }
 
-/// Width of the control block. Each shown switch keeps a column wide enough for its caption, and the key buttons share that block.
+/// Width of the control block. Each shown switch keeps a column wide enough for its caption.
 export function controlContentWidth(rockerCount: number): number {
-  const rockers = Math.max(0, rockerCount) * columnPitch
-  const keys = keyButtonWidth + 8 + clearButtonWidth
-  return Math.max(rockers, keys)
+  return Math.max(Math.max(0, rockerCount) * columnPitch, keyButtonWidth)
 }
 
 /// The clef sits in a slot whose gap from the barline equals its gap to the key signature.
@@ -175,4 +172,12 @@ export function splitPanel(width: number, controls: number): { controls: number;
   const safeWidth = Math.max(0, width)
   const used = Math.min(Math.max(0, controls), safeWidth)
   return { controls: used, score: safeWidth - used }
+}
+
+/// The score may cover the controls completely. It stops shrinking at `minimum`.
+export function clampScoreColumn(wanted: number, minimum: number, panelWidth: number): number {
+  const maxScore = Math.max(0, panelWidth)
+  const minScore = Math.min(Math.max(0, minimum), maxScore)
+  if (!Number.isFinite(wanted)) return minScore
+  return Math.min(maxScore, Math.max(minScore, wanted))
 }

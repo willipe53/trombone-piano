@@ -1,6 +1,6 @@
 ## ![Keyboard](piano) Keyboard
 
-Polyphonic. Slide the keyboard back and forth with the mahogany strip. On a phone this screen stays landscape. The opening screen, help, and the games turn with the device. On an iPad this screen turns too.
+Polyphonic. Slide the keyboard back and forth with the mahogany strip. On a phone the keyboard stays landscape. Help turns with the device. On an iPad the keyboard turns too.
 
 ## ![Key size](straighten) Key size
 
@@ -20,11 +20,11 @@ Leaves the screen on while the app is open. The switch is on the phone and table
 
 ## ![Trombone](music_note) Trombone
 
-On plays the trombone and shows the horn. The slide moves to the position of the last note played. Off plays the piano. Tap the horn to switch between the straight and trigger drawings. The trigger horn shows B1 through Eb2 with the trigger thrown and prints T positions.
+On plays the trombone and shows the horn. The slide moves to the shortest position of the last note played. Other positions for that note are marked under the slide, each pointer lined up with that slide length. The flat 7th partial sits short of the numbered stop. G4 is #2, and that partial continues through D4 at #7. The straight horn shows its own alternates. The trigger horn also shows the T positions, named in half steps of the longer tube, so a trigger 2nd is T2.5. Off plays the piano. Tap the horn to switch between the straight and trigger drawings. The trigger horn shows C2 through Eb2 with the trigger thrown. B1 is past the end of the slide.
 
 ## ![Show positions](toggle_on) Show positions
 
-Prints the slide position on keys the horn can play and over notes on the staff. The circle next to the switch opens a palette for that color.
+Prints the slide position on keys the horn can play and over notes on the staff. It also shows the position pointers under the slide. The circle next to the switch opens a palette for that color. The pointers hide when the switch is off.
 
 ## ![MIDI](toggle_on) MIDI
 
@@ -38,13 +38,9 @@ Sets the signature on the score and the SHOW KEY marks.
 
 Notes you play are written on the right. Trombone uses tenor and bass clef. Piano uses treble and bass. CLEAR SCORE empties it. With show positions on, the trombone score also prints the position above each note. Pinch the staff to grow or shrink it, and slide it to look around. RECENTER puts that view back.
 
-## ![Golf](golf_course) Golf
+## ![Drone](drone) Drone
 
-Golf, bass and Golf, tenor deal the same game in that clef. Columns of face-up notes, and one note in the waste with its slide position showing. Take the front note of a column when a position of that note is one stop from the waste. The short 2nd sits with 2, so it is next to 1 and 3. The position prints on the note as it lands. A take that is not a neighbor does not move, and the position stays hidden until a legal take or a peek. Undo lifts the last take. Clearing the columns finishes the hole. Easier removes ledger lines or shortens the deal. Harder adds ledger lines or columns. Next deals another hole in the same clef. With sound on, a legal take plays that note, a peek plays the note you looked up, and clearing the columns plays the hole.
-
-## ![Scale inventory](queue_music) Scale inventory
-
-One octave of a named major key on the bass staff, with notes missing. Place the missing notes. A wrong note does not land. Clearing the octave finishes the round. Easier removes a blank, an accidental, or the ledger lines. Harder adds a blank, then accidentals, then ledger lines. Next deals another key of the same size. With sound on, a placed note plays, and clearing the octave plays the scale.
+The header switches the left side of the control panel between the piano and the drone. The staff and the strip stay. The keyboard stays. The drone holds the tonic, the fourth, and the octave of a key chosen from the bass-clef list. Octave up and octave down move that chord. Trombone, Reed, and Tone are the voices. Trombone waits until its samples have loaded. The sounding keys sit down. A touch on a key does not play. The drone switch starts and stops the sound. Leaving the drone stops it, and coming back with the switch on starts the same chord.
 
 ## ![MIDI details](info) MIDI details
 

@@ -15,6 +15,7 @@ import {
   paletteRing,
   rowWidth,
   scoreIsAtDefaultView,
+  clampScoreColumn,
   splitPanel,
   storedPaletteColor,
   titleBallSize,
@@ -29,6 +30,8 @@ import {
   clampScoreOffset,
 } from './panelMeasure'
 import { scheduledSources } from './playback'
+import { firstChordRight, noteColumnCapacity, noteColumnMetrics, staffContentWidth } from './scoreMeasure'
+import { KeySignature } from './scoreNotation'
 
 describe('title fit', () => {
   const widthAt = (fontSize: number) => fontSize * 10
@@ -52,6 +55,40 @@ describe('panel split', () => {
     expect(split.score).toBe(1194 - controls)
   })
 
+  it('fits the clefs, the signature, and one chord before the rest of the staff', () => {
+    const height = 280
+    const open = firstChordRight(staffContentWidth, height, 'trombone', KeySignature.c)
+    const flats = firstChordRight(staffContentWidth, height, 'trombone', KeySignature.bFlat)
+    const sharps = firstChordRight(staffContentWidth, height, 'trombone', KeySignature.cSharp)
+    expect(open).toBeGreaterThan(40)
+    expect(flats).toBeGreaterThan(open)
+    expect(sharps).toBeGreaterThan(flats)
+    expect(sharps).toBeLessThan(staffContentWidth / 2)
+    expect(firstChordRight(staffContentWidth, height, 'trombone', KeySignature.c)).toBeGreaterThan(
+      firstChordRight(staffContentWidth, height, 'piano', KeySignature.c),
+    )
+    expect(firstChordRight(0, height, 'trombone', KeySignature.c)).toBe(0)
+  })
+
+  it('keeps only the columns that fit in the visible score', () => {
+    const height = 280
+    const one = firstChordRight(staffContentWidth, height, 'trombone', KeySignature.bFlat)
+    const slot = noteColumnMetrics(height, 'trombone', KeySignature.bFlat).slot
+    expect(noteColumnCapacity(one, height, 'trombone', KeySignature.bFlat)).toBe(1)
+    expect(noteColumnCapacity(one + slot, height, 'trombone', KeySignature.bFlat)).toBe(2)
+    expect(noteColumnCapacity(staffContentWidth, height, 'trombone', KeySignature.bFlat)).toBeGreaterThan(2)
+    expect(firstChordRight(staffContentWidth, height, 'trombone', KeySignature.cSharp)).toBeGreaterThan(
+      firstChordRight(staffContentWidth, height, 'trombone', KeySignature.c),
+    )
+  })
+
+  it('lets the score cover the controls and stops at its minimum', () => {
+    expect(clampScoreColumn(900, 120, 800)).toBe(800)
+    expect(clampScoreColumn(40, 120, 800)).toBe(120)
+    expect(clampScoreColumn(400, 120, 800)).toBe(400)
+    expect(clampScoreColumn(20, 900, 800)).toBe(800)
+  })
+
   it('keeps the controls and gives the score the remainder on a narrow panel', () => {
     const controls = controlColumnWidth(controlContentWidth(3))
     const split = splitPanel(500, controls)
@@ -62,7 +99,7 @@ describe('panel split', () => {
 
   it('counts a third rocker only when that control is shown', () => {
     expect(controlRockerCount(false, false)).toBe(2)
-    expect(controlContentWidth(2)).toBe(300)
+    expect(controlContentWidth(2)).toBe(2 * columnPitch)
     expect(controlRockerCount(true, false)).toBe(3)
     expect(controlRockerCount(false, true)).toBe(3)
     expect(controlContentWidth(3)).toBeGreaterThan(controlContentWidth(2))

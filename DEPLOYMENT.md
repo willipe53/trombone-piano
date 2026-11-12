@@ -21,7 +21,7 @@ Later publishes:
 npm run web-deploy
 ```
 
-`/piano`, `/games`, and `/help` are not separate files. A missing path returns `index.html` and keeps the address, so those URLs open the matching screen.
+`/` is the keyboard and `/help` is help. They are not separate files. A missing path returns `index.html` and keeps the address. `/piano` and `/games` are not screens. The app replaces those addresses with `/`.
 
 `web-deploy` reads the latest iOS build from EAS and writes its version and build number into `src/buildInfo.ts` before the export. If EAS has no iOS build yet, the file stays at `2.0.0` and build `1`. The help screen shows that pair as `Version: 2.0.0+1`. A web deploy does not bump the store version. Commit `src/buildInfo.ts` when the next native build should carry the same pair.
 

@@ -5,6 +5,7 @@ import {
   noteIsInKey,
   pitchClasses,
   ScoreHistory,
+  visibleScoreColumns,
   signatureMarks,
   tromboneHornMessage,
   tromboneNeedsFAttachment,
@@ -14,7 +15,11 @@ import {
   tromboneOuterShiftForTravel,
   trombonePosition,
   trombonePositionLabel,
+  shortSeventhPosition,
   tromboneSlide,
+  tromboneSlides,
+  slideLabelOffsets,
+  slidePointer,
   TromboneHorn,
   writtenNote,
   writtenNotes,
@@ -127,10 +132,26 @@ describe('score notation', () => {
     expect(history.columns[0].notes[1].sounding).toBe(false)
     expect(history.columns[1].notes[0].sounding).toBe(true)
 
-    for (let midi = 72; midi < 72 + ScoreHistory.columnLimit; midi += 1) history.apply([midi], [])
-    expect(history.columns).toHaveLength(ScoreHistory.columnLimit)
-    expect(history.columns[history.columns.length - 1].notes[0].midi).toBe(72 + ScoreHistory.columnLimit - 1)
+    for (let midi = 72; midi < 72 + ScoreHistory.keptColumns; midi += 1) history.apply([midi], [])
+    expect(history.columns).toHaveLength(ScoreHistory.keptColumns)
+    expect(history.columns[history.columns.length - 1].notes[0].midi).toBe(72 + ScoreHistory.keptColumns - 1)
     expect(history.columns[0].notes[0].midi).not.toBe(60)
+  })
+
+  it('keeps notes that slide out of a narrower score and shows the newest that fit', () => {
+    const history = new ScoreHistory()
+    history.hold(4)
+    history.apply([60], [])
+    history.apply([62], [])
+    history.apply([64], [])
+    history.apply([65], [])
+    history.hold(2)
+    expect(history.columns.map((column) => column.notes[0].midi)).toEqual([60, 62, 64, 65])
+    expect(visibleScoreColumns(history.columns, 2).columns.map((column) => column.notes[0].midi)).toEqual([64, 65])
+    expect(visibleScoreColumns(history.columns, 2).pad).toBe(0)
+    expect(visibleScoreColumns(history.columns, 4).columns).toHaveLength(4)
+    expect(visibleScoreColumns(history.columns, 6).pad).toBe(2)
+    expect(visibleScoreColumns(history.columns, 6).columns[3].notes[0].midi).toBe(65)
   })
 
   it('uses the shortest in-tune slide as the primary trombone position', () => {
@@ -184,11 +205,12 @@ describe('score notation', () => {
       expect(tromboneOuterShiftForTravel(travel[index], 1389, TromboneHorn.trigger)).toBe(travel[index])
     }
     expect(Math.abs(tromboneOuterDropForHorn(709, TromboneHorn.trigger) - 8)).toBeLessThanOrEqual(0.001)
-    expect(tromboneSlide(39, TromboneHorn.trigger)).toEqual({ travel: 288, trigger: true, label: 'T3' })
-    expect(tromboneSlide(38, TromboneHorn.trigger)).toEqual({ travel: 383, trigger: true, label: 'T4' })
-    expect(tromboneSlide(37, TromboneHorn.trigger)).toEqual({ travel: 534, trigger: true, label: 'T5' })
-    expect(tromboneSlide(36, TromboneHorn.trigger)).toEqual({ travel: 694, trigger: true, label: 'T6' })
-    expect(tromboneSlide(35, TromboneHorn.trigger)).toEqual({ travel: 710, trigger: true, label: 'T7' })
+    expect(tromboneSlide(39, TromboneHorn.trigger)).toEqual({ travel: 252, trigger: true, label: 'T3.5' })
+    expect(tromboneSlide(38, TromboneHorn.trigger)).toEqual({ travel: 400, trigger: true, label: 'T5' })
+    expect(tromboneSlide(37, TromboneHorn.trigger)).toEqual({ travel: 585, trigger: true, label: 'T6.5' })
+    expect(tromboneSlide(36, TromboneHorn.trigger)).toEqual({ travel: 710, trigger: true, label: 'T7.5' })
+    expect(tromboneSlide(35, TromboneHorn.trigger)).toBeNull()
+    expect(tromboneSlides(40, TromboneHorn.trigger).some((slide) => slide.label === 'T2.5')).toBe(true)
     for (let midi = 28; midi <= 107; midi += 1) {
       const slide = tromboneSlide(midi, TromboneHorn.trigger)
       if (slide) expect(slide.travel).toBeLessThanOrEqual(710)
@@ -197,11 +219,60 @@ describe('score notation', () => {
     expect(open?.trigger).toBe(false)
     expect(open?.label).toBe('1')
     expect(open?.travel).toBe(0)
-    for (let midi = 35; midi <= 39; midi += 1) {
+    expect(tromboneHornMessage(35, TromboneHorn.trigger)).toBeNull()
+    expect(trombonePositionLabel(35, TromboneHorn.trigger)).toBeNull()
+    for (let midi = 36; midi <= 39; midi += 1) {
       expect(tromboneHornMessage(midi, TromboneHorn.trigger)).toBeNull()
       expect(trombonePositionLabel(midi, TromboneHorn.trigger)).toBe(tromboneSlide(midi, TromboneHorn.trigger)?.label)
     }
     expect(tromboneHornMessage(36)).toBe('requires F attachment')
+  })
+
+  it('lists every in-tune slide, with trigger positions further out', () => {
+    const straight = tromboneSlides(58, TromboneHorn.straight)
+    expect(straight.map((slide) => slide.label)).toEqual(['1', '5'])
+    expect(straight.map((slide) => slide.travel)).toEqual([0, 459])
+    expect(straight.some((slide) => slide.label.startsWith('T'))).toBe(false)
+    const trigger = tromboneSlides(58, TromboneHorn.trigger)
+    expect(trigger.map((slide) => slide.label)).toEqual(['1', '5', 'T3.5'])
+    expect(trigger[2]).toEqual({ travel: 252, trigger: true, label: 'T3.5' })
+    expect(trigger[1].travel).toBe(TromboneHorn.trigger.slideTravel[4])
+    expect(tromboneSlide(58, TromboneHorn.straight)?.label).toBe('1')
+    expect(trombonePositionLabel(58, TromboneHorn.trigger)).toBe('1')
+    expect(tromboneSlides(39, TromboneHorn.trigger).map((slide) => slide.label)).toEqual(['T3.5'])
+    expect(tromboneSlides(35, TromboneHorn.trigger)).toEqual([])
+  })
+
+  it('places the flat 7th partial short of the numbered stop', () => {
+    const cents = 1200 * Math.log2(7)
+    const fraction = (100 + (cents - Math.round(cents / 100) * 100)) / 100
+    const straight = tromboneSlides(67, TromboneHorn.straight)
+    const second = TromboneHorn.straight.slideTravel[1]
+    expect(straight.map((slide) => slide.label)).toEqual(['#2', '4', '6'])
+    expect(straight[0].travel).toBe(Math.round(second * fraction))
+    expect(straight[0].travel).toBeLessThan(second)
+    expect(tromboneSlide(67, TromboneHorn.straight)?.label).toBe('#2')
+    const trigger = tromboneSlides(67, TromboneHorn.trigger)
+    expect(trigger[0]).toEqual({
+      travel: Math.round(TromboneHorn.trigger.slideTravel[1] * fraction),
+      trigger: false,
+      label: '#2',
+    })
+    expect(tromboneSlides(65, TromboneHorn.straight).map((slide) => slide.label)).toEqual(['1', '#4', '6'])
+    expect(tromboneSlides(62, TromboneHorn.straight).some((slide) => slide.label === '#7')).toBe(true)
+    expect(shortSeventhPosition(68)).toBeNull()
+    expect(tromboneSlides(68, TromboneHorn.straight).some((slide) => slide.label === '1')).toBe(false)
+  })
+
+  it('places a position pointer on the brace after the outer slide shift', () => {
+    const frame = { x: 10, y: 20, width: TromboneHorn.straight.canvasWidth, height: 334 }
+    const travel = 459
+    const mark = slidePointer(TromboneHorn.straight, travel, frame)
+    const shift = tromboneOuterShiftForTravel(travel, frame.width, TromboneHorn.straight)
+    expect(mark.x).toBeCloseTo(frame.x + TromboneHorn.straight.braceX + shift)
+    expect(mark.tip).toBeCloseTo(frame.y + TromboneHorn.straight.braceY + tromboneOuterDropForHorn(shift, TromboneHorn.straight))
+    expect(slideLabelOffsets([{ x: 0 }, { x: 40 }], [12, 12], 4)).toEqual([0, 0])
+    expect(slideLabelOffsets([{ x: 0 }, { x: 10 }, { x: 40 }], [12, 12, 12], 4)).toEqual([-3, 3, 0])
   })
 
   it('clears the staff history', () => {

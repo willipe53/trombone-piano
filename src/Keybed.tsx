@@ -16,7 +16,7 @@ import {
   type SkFont,
   type SkPath,
 } from '@shopify/react-native-skia'
-import { MoogLayout } from './moogLayout'
+import { laneForStrip, MoogLayout } from './moogLayout'
 import { hatchPath, type KeyHatch } from './keyHatch'
 import {
   pitchClasses,
@@ -25,6 +25,9 @@ import {
   tromboneOuterShiftForTravel,
   trombonePositionLabel,
   tromboneSlide,
+  tromboneSlides,
+  slideLabelOffsets,
+  slidePointer,
   TromboneHorn,
   type TromboneHorn as HornDrawing,
   type KeyboardInstrument,
@@ -93,6 +96,10 @@ export function Keybed({
   initialOrigin = null,
   onOrigin,
   onToggleHorn,
+  playKeys = true,
+  heldNotes,
+  revealNote = null,
+  originKey = null,
 }: {
   instrument: KeyboardInstrument
   horn?: HornDrawing
@@ -112,6 +119,10 @@ export function Keybed({
   initialOrigin?: number | null
   onOrigin?: (origin: number) => void
   onToggleHorn?: () => void
+  playKeys?: boolean
+  heldNotes?: ReadonlySet<number>
+  revealNote?: number | null
+  originKey?: string | null
 }) {
   const [region, setRegion] = useState({ width: 0, height: 0 })
   const [origin, setOrigin] = useState(0)
@@ -125,6 +136,7 @@ export function Keybed({
   const frameRef = useRef(0)
   const applied = useRef({ scale: -1, width: -1 })
   const drag = useRef({ startOrigin: 0, startX: 0, samples: [] as { t: number; x: number }[] })
+  const seenOriginKey = useRef<string | null>(null)
   const arrowHits = useRef({ lower: null as ArrowHit | null, higher: null as ArrowHit | null })
   const keyPage = useRef({ x: 0, y: 0 })
   const keyHost = useRef<React.ComponentRef<typeof View>>(null)
@@ -152,6 +164,7 @@ export function Keybed({
   const measureFont = useFont(labelTypeface, 32)
   const badge = useMemo(() => badgeFor(keys, measureFont), [keys, measureFont])
   const font = useFont(labelTypeface, Math.max(1, Math.round(badge?.fontSize ?? 16)))
+  const positionFont = useFont(labelTypeface, 13)
 
   function place(next: number): void {
     originRef.current = next
@@ -187,10 +200,37 @@ export function Keybed({
   }, [bedWidth, scale, width])
 
   useEffect(() => {
-    if (enabled) return
+    if (enabled && playKeys) return
     setPressed(new Set())
-    onNotesRef.current(new Set())
-  }, [enabled])
+    if (playKeys) onNotesRef.current(new Set())
+  }, [enabled, playKeys])
+
+  useEffect(() => {
+    if (!originKey || width <= 0) return
+    if (seenOriginKey.current === null) {
+      seenOriginKey.current = originKey
+      return
+    }
+    if (seenOriginKey.current === originKey) return
+    seenOriginKey.current = originKey
+    stopMotion()
+    const range = keyboardScrollRange(bedWidth, width)
+    place(clampScroll(range, initialOrigin ?? centeredKeyboardOffset(bedWidth, width)))
+    remember()
+  }, [originKey, width, bedWidth, initialOrigin])
+
+  useEffect(() => {
+    if (revealNote == null || width <= 0) return
+    const key = keys.find((item) => item.midiNote === revealNote)
+    if (!key) return
+    const left = originRef.current + key.rect.left
+    const right = left + key.rect.width
+    if (left >= 8 && right <= width - 8) return
+    stopMotion()
+    const range = keyboardScrollRange(bedWidth, width)
+    place(clampScroll(range, 16 - key.rect.left))
+    remember()
+  }, [revealNote, keys, width, bedWidth])
 
   function fling(velocity: number): void {
     const range = keyboardScrollRange(bedWidth, width)
@@ -319,6 +359,10 @@ export function Keybed({
       ? { inner: triggerInner, outer: triggerOuter, over: triggerOver, trigger: triggerRotate }
       : { inner: straightInner, outer: straightOuter, over: straightOver, trigger: null }
   const hornDrawing = hornFrame(width, woodHeight, horn, hornImage.inner, slideNote, instrument)
+  const positionMarks =
+    showPositions && instrument === 'trombone' && slideNote != null && hornDrawing
+      ? layoutPositionMarks(horn, slideNote, hornDrawing.frame, woodHeight, positionFont)
+      : []
   const hornMessage =
     loading
       ? 'Loading sound files...'
@@ -409,6 +453,20 @@ export function Keybed({
             {hornDrawing?.trigger && hornImage.trigger ? (
               <Image image={hornImage.trigger} x={hornDrawing.frame.x} y={hornDrawing.frame.y} width={hornDrawing.frame.width} height={hornDrawing.frame.height} fit="fill" />
             ) : null}
+            {positionMarks.map((mark) => (
+              <Group key={mark.label}>
+                <Path path={caretPath(mark.x, mark.caret)} color="#FFFFFF" />
+                {positionFont ? (
+                  <Text
+                    font={positionFont}
+                    text={mark.label}
+                    x={mark.x + mark.shift - mark.width / 2}
+                    y={mark.baseline}
+                    color="#FFFFFF"
+                  />
+                ) : null}
+              </Group>
+            ))}
             <RoundedRect x={1} y={1} width={Math.max(0, width - 2)} height={Math.max(0, woodHeight - 2)} r={0} style="stroke" strokeWidth={1} color="#000000" />
             <EdgeMark path={scrollMarks.left?.path ?? null} opacity={edgeCue.left} />
             <EdgeMark path={scrollMarks.right?.path ?? null} opacity={edgeCue.right} />
@@ -429,8 +487,8 @@ export function Keybed({
             keyPage.current = { x: pageX, y: pageY }
           })
         }}
-        onStartShouldSetResponder={() => enabled}
-        onMoveShouldSetResponder={() => enabled}
+        onStartShouldSetResponder={() => enabled && playKeys}
+        onMoveShouldSetResponder={() => enabled && playKeys}
         onResponderTerminationRequest={() => false}
         onResponderGrant={(event) => {
           keyHost.current?.measure((_x, _y, _w, _h, pageX, pageY) => {
@@ -450,7 +508,7 @@ export function Keybed({
                   <DrawnKey
                     key={key.midiNote}
                     pianoKey={key}
-                    pressed={pressed.has(key.midiNote)}
+                    pressed={pressed.has(key.midiNote) || (heldNotes?.has(key.midiNote) ?? false)}
                     badge={badge}
                     font={font}
                     showNotes={showNotes}
@@ -469,7 +527,7 @@ export function Keybed({
                   <DrawnKey
                     key={key.midiNote}
                     pianoKey={key}
-                    pressed={pressed.has(key.midiNote)}
+                    pressed={pressed.has(key.midiNote) || (heldNotes?.has(key.midiNote) ?? false)}
                     badge={badge}
                     font={font}
                     showNotes={showNotes}
@@ -658,6 +716,37 @@ function addChevron(path: ReturnType<typeof Skia.PathBuilder.Make>, tipX: number
   path.lineTo(tail, centerY + wing)
 }
 
+function caretPath(x: number, tip: number): SkPath {
+  const path = Skia.PathBuilder.Make()
+  path.moveTo(x, tip)
+  path.lineTo(x - 4.5, tip + 7)
+  path.lineTo(x + 4.5, tip + 7)
+  path.close()
+  return path.build()
+}
+
+function layoutPositionMarks(
+  horn: HornDrawing,
+  midi: number,
+  frame: { x: number; y: number; width: number; height: number },
+  woodHeight: number,
+  font: SkFont | null,
+): { label: string; x: number; tip: number; caret: number; baseline: number; width: number; shift: number }[] {
+  const lane = laneForStrip(woodHeight)
+  if (lane <= 0 || frame.width <= 0) return []
+  const marks = tromboneSlides(midi, horn).map((slide) => {
+    const pointer = slidePointer(horn, slide.travel, frame)
+    return { label: slide.label, x: pointer.x, tip: pointer.tip, width: font?.getTextWidth(slide.label) ?? slide.label.length * 8 }
+  })
+  const shifts = slideLabelOffsets(marks, marks.map((mark) => mark.width), 4)
+  const ascent = Math.max(11, -(font?.getMetrics().ascent ?? 11))
+  return marks.map((mark, index) => {
+    const caret = mark.tip + 1
+    const baseline = caret + 7 + 4 + ascent
+    return { ...mark, caret, baseline, shift: shifts[index] }
+  })
+}
+
 function hornFrame(
   width: number,
   woodHeight: number,
@@ -670,9 +759,17 @@ function hornFrame(
   const canvasW = image?.width() ?? horn.canvasWidth
   const canvasH = image?.height() ?? 334
   const aspect = canvasH > 0 ? canvasW / canvasH : 1
-  const height = woodHeight / 1.2
+  const lane = laneForStrip(woodHeight)
+  const room = Math.max(0, woodHeight - lane)
+  const bellClearance = 6
+  const height = Math.max(0, room / MoogLayout.barHeightFactor - bellClearance)
   const drawWidth = height * aspect
-  const frame = { left: (width - drawWidth) / 2, top: (woodHeight - height) / 2, width: drawWidth, height }
+  const frame = {
+    left: (width - drawWidth) / 2,
+    top: (room - height - bellClearance) / 2 + bellClearance,
+    width: drawWidth,
+    height,
+  }
   let outer = { ...frame }
   let trigger = false
   if (slideNote != null) {

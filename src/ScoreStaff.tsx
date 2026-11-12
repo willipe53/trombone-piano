@@ -2,11 +2,13 @@ import { useMemo } from 'react'
 import { Canvas, Group, Line, Oval, Path, Skia, Text, useFont } from '@shopify/react-native-skia'
 import { MusicGlyph } from './MusicGlyph'
 import { bassOutline, flatOutline, naturalOutline, sharpOutline, tenorOutline, trebleOutline } from './musicOutlines'
-import { clefReference, evenClefSlot, type DrawnClef } from './panelMeasure'
+import { clefReference, type DrawnClef } from './panelMeasure'
+import { measureStaff, type StaffMetrics } from './scoreMeasure'
 import {
   noteBelongsOnDrawnStaff,
   signatureMarks,
   trombonePositionLabel,
+  visibleScoreColumns,
   writtenNotes,
   type KeySignature,
   type KeyboardInstrument,
@@ -18,20 +20,7 @@ import {
 const ink = 'rgba(255,255,255,0.72)'
 const labelTypeface = require('../assets/fonts/Roboto-Medium.ttf')
 
-type Metrics = {
-  spacing: number
-  trebleTop: number
-  bassTop: number
-  clefLeft: number
-  clefSlot: number
-  signatureOrigin: number
-  signatureStep: number
-  noteLeft: number
-  slot: number
-  headWidth: number
-  headHeight: number
-  gapSpaces: number
-}
+type Metrics = StaffMetrics
 
 export function ScoreStaff({
   width,
@@ -42,6 +31,9 @@ export function ScoreStaff({
   keySignature,
   columns,
   shiftColumns,
+  columnSlot,
+  columnHead,
+  visibleCount,
 }: {
   width: number
   height: number
@@ -51,11 +43,15 @@ export function ScoreStaff({
   keySignature: KeySignature
   columns: readonly ScoreColumn[]
   shiftColumns: number
+  columnSlot?: number
+  columnHead?: number
+  visibleCount: number
 }) {
-  const metrics = useMemo(
-    () => staffMetrics(width, height, instrument, keySignature),
-    [width, height, instrument, keySignature],
-  )
+  const metrics = useMemo(() => {
+    const measured = measureStaff(width, height, instrument, keySignature)
+    if (!measured || !columnSlot || !columnHead) return measured
+    return { ...measured, slot: columnSlot, headWidth: columnHead }
+  }, [width, height, instrument, keySignature, columnSlot, columnHead])
   const positionFont = useFont(labelTypeface, Math.max(8, metrics?.headHeight ?? 12))
   if (width <= 0 || height <= 0 || !metrics) return null
   const staves: StaffName[] = instrument === 'trombone' ? ['tenor', 'bass'] : ['treble', 'bass']
@@ -78,8 +74,9 @@ export function ScoreStaff({
           />
         )),
       )}
-      {columns.map((column, index) => {
-        const centerX = metrics.noteLeft + (index + shiftColumns) * metrics.slot + metrics.slot / 2
+      {visibleScoreColumns(columns, visibleCount).columns.map((column, index, shown) => {
+        const pad = Math.max(0, visibleCount - shown.length)
+        const centerX = metrics.noteLeft + (pad + index + shiftColumns) * metrics.slot + metrics.slot / 2
         const written = column.notes.flatMap((event) =>
           writtenNotes(event.midi, instrument, keySignature).map((note) => ({ event, note })),
         )
@@ -136,53 +133,6 @@ function accidentalOutline(accidental: 'sharp' | 'flat' | 'natural') {
   if (accidental === 'sharp') return sharpOutline
   if (accidental === 'flat') return flatOutline
   return naturalOutline
-}
-
-function staffMetrics(
-  width: number,
-  height: number,
-  instrument: KeyboardInstrument,
-  keySignature: KeySignature,
-): Metrics | null {
-  if (width <= 0 || height <= 0) return null
-  const inset = 6
-  const usable = Math.max(48, height - inset * 2)
-  const previousGapSpaces = 20
-  const gapSpaces = previousGapSpaces * 0.75
-  const marginSpaces = 10
-  const spacing = usable / (4 + previousGapSpaces + 4 + marginSpaces * 2)
-  const freed = (previousGapSpaces - gapSpaces) * spacing
-  const trebleTop = inset + marginSpaces * spacing + freed / 2
-  const clefSpaces = Math.max(
-    ...(instrument === 'trombone'
-      ? [tenorOutline.advance, bassOutline.advance]
-      : [trebleOutline.advance, bassOutline.advance]),
-  )
-  const accidentalSpaces = keySignature.accidentals < 0 ? flatOutline.advance : sharpOutline.advance
-  const clefSlot = evenClefSlot(spacing, clefSpaces, accidentalSpaces)
-  const signatureOrigin = clefSlot.signatureCenter
-  const signatureStep = spacing * 1.1
-  const signatureCount = Math.abs(keySignature.accidentals)
-  const afterSignature =
-    signatureCount > 0
-      ? signatureOrigin + (signatureCount - 1) * signatureStep + spacing * 1.8
-      : clefSlot.left + clefSlot.width + spacing
-  const slot = Math.max(8, ((width - afterSignature - 4) / 10) * 0.5)
-  const headWidth = Math.min(slot * 0.62, spacing * 1.28, Math.max(4, (slot - 4) / 2))
-  return {
-    spacing,
-    trebleTop,
-    bassTop: trebleTop + (4 + gapSpaces) * spacing,
-    clefLeft: clefSlot.left,
-    clefSlot: clefSlot.width,
-    signatureOrigin,
-    signatureStep,
-    noteLeft: afterSignature,
-    slot,
-    headWidth,
-    headHeight: spacing * 0.9,
-    gapSpaces,
-  }
 }
 
 function yFor(step: number, staff: StaffName, metrics: Metrics): number {

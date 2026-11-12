@@ -78,6 +78,6 @@ The React Native app is the repository root. See [../README.md](../README.md).
 
 `../app-store/` holds the store screenshots. `../website/` holds the privacy policy and the support page. Those pages are what `trombonepiano.com` serves.
 
-`../games/` holds notes for clef and scale games in `../games/PREMISE.md`. It is not a shipped target.
+`../games/` holds notes for clef and scale games in `../games/PREMISE.md`. It is not a shipped target. The React Native app opens on the piano and toggles to the drone.
 
 `../buildServer.json` is the SweetPad build server. `../LICENSE` is the MIT license.

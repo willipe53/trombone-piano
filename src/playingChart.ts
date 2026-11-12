@@ -1,4 +1,4 @@
-import { trombonePosition, writtenNote, type KeySignature, type ScoreStaff } from './scoreNotation'
+import { shortSeventhPosition, trombonePosition, writtenNote, type KeySignature, type ScoreStaff } from './scoreNotation'
 
 export type { ScoreStaff }
 
@@ -71,10 +71,9 @@ export function sitsOnStaff(midi: number, staff: ScoreStaff, key: KeySignature):
   return step >= range.minimum && step <= range.maximum
 }
 
-/// G4 is MIDI 67. Short 2nd, then one semitone and one position number per stop, through D4 at short 7th.
 function shortSeventhStop(midi: number): SlideStop | null {
-  const number = 2 + (67 - midi)
-  if (number < 2 || number > 7) return null
+  const number = shortSeventhPosition(midi)
+  if (number === null) return null
   return { number, short: true }
 }
 

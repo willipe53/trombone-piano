@@ -1,6 +1,6 @@
 # App Store
 
-This is an update of the Trombone Piano record already for sale. Use the same bundle id and the same app name. Do not open a second app. Do not upload until the games are ready.
+This is an update of the Trombone Piano record already for sale. Use the same bundle id and the same app name. Do not open a second app. The app opens on the keyboard and toggles to the drone.
 
 ## Identity
 
@@ -35,6 +35,6 @@ Review notes: This is an update of Trombone Piano. It does not require an accoun
 
 What's New describes what a player can do that they could not do before. It does not need to name React Native.
 
-Retake the screenshots in `app-store/screenshots/` if the binary shows the pills and the games. A listing that still shows only the old keyboard is the usual metadata rejection.
+Retake the screenshots in `app-store/screenshots/` if the binary shows the drone panel. A listing that still shows only the old keyboard is the usual metadata rejection.
 
-The age rating stays put if the games add no accounts, ads, web browsing, or shared user content. A phased release is available if the update needs a halt switch.
+The age rating stays put. The drone adds no accounts, ads, web browsing, or shared user content. A phased release is available if the update needs a halt switch.
